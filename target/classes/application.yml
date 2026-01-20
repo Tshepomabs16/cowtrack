@@ -1,0 +1,47 @@
+# Server Configuration
+server:
+  port: 8081
+
+# Database Configuration
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3307/cowtrack
+    username: root  # Change if you use different username
+    password: REDACTED  # Change to your MySQL password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  spring:
+    datasource:
+      # ... existing configuration ...
+      Hikari:
+        connection-timeout: 30000
+        maximum-pool-size: 10
+        minimum-idle: 5
+        idle-timeout: 600000
+        max-lifetime: 1800000
+        auto-commit: true
+        pool-name: CowTrackHikariPool
+
+    jpa:
+      # ... existing configuration ...
+      open-in-view: false  # Important for performance
+
+  jpa:
+    hibernate:
+      ddl-auto: update  # Updates schema, doesn't delete data
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+    database-platform: org.hibernate.dialect.MySQL8Dialect
+
+# Logging Configuration
+logging:
+  level:
+    com.cowtrack: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
