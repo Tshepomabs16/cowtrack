@@ -1,0 +1,17 @@
+# IntelliJ
+.idea/
+*.iml
+
+# Build outputs
+target/
+build/
+out/
+
+# NetBeans
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# OS
+.DS_Store
+Thumbs.db
