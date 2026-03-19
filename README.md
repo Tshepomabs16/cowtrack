@@ -41,4 +41,4 @@ This project was developed as the frontend side of the CowTrack application to p
 
 ## Author
 Tshepo Maabane
-GitHub: https://github.com/Tshepomabs16?
+GitHub: https://github.com/Tshepomabs16
