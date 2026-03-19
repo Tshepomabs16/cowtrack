@@ -34,4 +34,4 @@ This project was created to explore how software can be used in agriculture and 
 
 ## Author
 - Tshepo Maabane
-- GitHub: https://github.com/Tshepomabs16?utm_source=chatgpt.com
+- GitHub: https://github.com/Tshepomabs16
