@@ -1,5 +1,4 @@
 
-```md
 # CowTrack Frontend
 
 CowTrack Frontend is the user interface for the CowTrack system, created to help users interact with the livestock tracking platform in a simple and accessible way.
@@ -23,3 +22,22 @@ This project was developed as the frontend side of the CowTrack application to p
 1. Clone the repository:
    ```bash
    git clone https://github.com/Tshepomabs16/cowtrack-frontend.git
+2. Open the project folder:
+   ```bash
+   cd Edulink-Central
+3. Install dependencies:
+   ```bash
+   npm install
+5. Start the development server:
+   ```bash
+   npm run dev
+
+## Future Improvements:
+
+- Better UI design
+- Improved responsiveness
+- Stronger backend integration
+- Dashboard enhancements
+
+## Author
+Tshepo Maabane
