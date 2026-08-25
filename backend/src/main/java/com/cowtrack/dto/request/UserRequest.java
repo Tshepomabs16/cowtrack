@@ -25,4 +25,7 @@ public class UserRequest {
     @NotBlank(message = "Role is required")
     @Pattern(regexp = "FARMER|CARETAKER|ADMIN", message = "Role must be FARMER, CARETAKER, or ADMIN")
     private String role;
+
+    private String phone;
+    private String farmName;
 }

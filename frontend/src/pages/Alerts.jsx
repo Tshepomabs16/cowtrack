@@ -48,7 +48,7 @@ const Alerts = () => {
     try {
       await alertsAPI.markAsRead(id);
       setAlerts(alerts.map(alert =>
-        alert.id === id ? { ...alert, resolved: true } : alert
+        alert.alertId === id ? { ...alert, isResolved: true } : alert
       ));
     } catch (error) {
       console.error('Error resolving alert:', error);
@@ -58,20 +58,20 @@ const Alerts = () => {
 
   const handleResolveSelected = () => {
     setAlerts(alerts.map(alert =>
-      selectedAlerts.includes(alert.id) ? { ...alert, resolved: true } : alert
+      selectedAlerts.includes(alert.alertId) ? { ...alert, isResolved: true } : alert
     ));
     setSelectedAlerts([]);
   };
 
   const handleDeleteAlert = (id) => {
     if (window.confirm('Are you sure you want to delete this alert?')) {
-      setAlerts(alerts.filter(alert => alert.id !== id));
+      setAlerts(alerts.filter(alert => alert.alertId !== id));
     }
   };
 
   const handleDeleteSelected = () => {
     if (window.confirm(`Delete ${selectedAlerts.length} selected alerts?`)) {
-      setAlerts(alerts.filter(alert => !selectedAlerts.includes(alert.id)));
+      setAlerts(alerts.filter(alert => !selectedAlerts.includes(alert.alertId)));
       setSelectedAlerts([]);
     }
   };
@@ -80,7 +80,7 @@ const Alerts = () => {
     if (selectedAlerts.length === filteredAlerts.length) {
       setSelectedAlerts([]);
     } else {
-      setSelectedAlerts(filteredAlerts.map(alert => alert.id));
+      setSelectedAlerts(filteredAlerts.map(alert => alert.alertId));
     }
   };
 
@@ -114,23 +114,24 @@ const Alerts = () => {
 
   const filteredAlerts = alerts.filter(alert => {
     if (filter === 'all') return true;
-    if (filter === 'unresolved') return !alert.resolved;
-    if (filter === 'resolved') return alert.resolved;
+    if (filter === 'unresolved') return !alert.isResolved;
+    if (filter === 'resolved') return alert.isResolved;
     if (filter === 'critical') return alert.severity === 'critical';
-    if (filter === 'health') return alert.type === 'health';
-    if (filter === 'location') return alert.type === 'location';
-    return alert.type === filter;
-  }).filter(alert => showResolved ? true : !alert.resolved);
+    if (filter === 'health') return alert.alertType === 'health';
+    if (filter === 'location') return alert.alertType === 'location';
+    return alert.alertType === filter;
+  }).filter(alert => showResolved ? true : !alert.isResolved);
 
   const stats = {
     total: alerts.length,
-    unresolved: alerts.filter(a => !a.resolved).length,
-    critical: alerts.filter(a => a.severity === 'critical' && !a.resolved).length,
-    health: alerts.filter(a => a.type === 'health' && !a.resolved).length,
+    unresolved: alerts.filter(a => !a.isResolved).length,
+    critical: alerts.filter(a => a.severity === 'critical' && !a.isResolved).length,
+    health: alerts.filter(a => a.alertType === 'health' && !a.isResolved).length,
     today: alerts.filter(a => {
-      const today = new Date();
-      const alertDate = a.timestamp;
-      return alertDate.toDateString() === today.toDateString() && !a.resolved;
+      // createdAt arrives as an ISO string, so it has to be parsed first.
+      if (!a.createdAt) return false;
+      const alertDate = new Date(a.createdAt);
+      return alertDate.toDateString() === new Date().toDateString() && !a.isResolved;
     }).length,
   };
 
@@ -307,18 +308,18 @@ const Alerts = () => {
           <tbody>
             {filteredAlerts.length > 0 ? (
               filteredAlerts.map(alert => (
-                <tr key={alert.id} className={`alert-row ${alert.severity} ${alert.resolved ? 'resolved' : ''}`}>
+                <tr key={alert.alertId} className={`alert-row ${alert.severity} ${alert.isResolved ? 'resolved' : ''}`}>
                   <td className="select-column">
                     <input
                       type="checkbox"
-                      checked={selectedAlerts.includes(alert.id)}
-                      onChange={() => handleSelectAlert(alert.id)}
+                      checked={selectedAlerts.includes(alert.alertId)}
+                      onChange={() => handleSelectAlert(alert.alertId)}
                     />
                   </td>
                   <td className="type-column">
                     <div className="type-cell">
-                      {getTypeIcon(alert.type)}
-                      <span className="type-label">{alert.type}</span>
+                      {getTypeIcon(alert.alertType)}
+                      <span className="type-label">{alert.alertType}</span>
                     </div>
                   </td>
                   <td className="severity-column">
@@ -359,20 +360,20 @@ const Alerts = () => {
                   <td className="time-column">
                     <div className="time-cell">
                       <FiClock />
-                      <span>{alert.time}</span>
+                      <span>{alert.createdAt}</span>
                     </div>
                   </td>
                   <td className="status-column">
-                    <span className={`status-badge ${alert.resolved ? 'resolved' : 'active'}`}>
-                      {alert.resolved ? 'Resolved' : 'Active'}
+                    <span className={`status-badge ${alert.isResolved ? 'resolved' : 'active'}`}>
+                      {alert.isResolved ? 'Resolved' : 'Active'}
                     </span>
                   </td>
                   <td className="actions-column">
                     <div className="action-buttons">
-                      {!alert.resolved && (
+                      {!alert.isResolved && (
                         <button
                           className="btn-small btn-resolve"
-                          onClick={() => handleResolveAlert(alert.id)}
+                          onClick={() => handleResolveAlert(alert.alertId)}
                           title="Mark as resolved"
                         >
                           <FiCheckCircle />
@@ -382,7 +383,7 @@ const Alerts = () => {
                         className="btn-small btn-view"
                         onClick={() => {
                           // Navigate to alert details or cow details
-                          console.log('View alert details:', alert.id);
+                          console.log('View alert details:', alert.alertId);
                         }}
                         title="View details"
                       >
@@ -390,7 +391,7 @@ const Alerts = () => {
                       </button>
                       <button
                         className="btn-small btn-delete"
-                        onClick={() => handleDeleteAlert(alert.id)}
+                        onClick={() => handleDeleteAlert(alert.alertId)}
                         title="Delete alert"
                       >
                         <FiTrash2 />

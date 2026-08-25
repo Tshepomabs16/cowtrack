@@ -79,4 +79,10 @@ public class LocationController extends BaseController {
         LocationResponse location = locationService.recordLocation(request);
         return success("Location simulated and recorded", location);
     }
+
+    /** Latest position for each animal, for the live map. */
+    @GetMapping("/live")
+    public ResponseEntity<?> getLiveLocations() {
+        return success(locationService.getLiveLocations());
+    }
 }

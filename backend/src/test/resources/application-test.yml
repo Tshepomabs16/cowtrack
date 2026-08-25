@@ -20,6 +20,8 @@ cowtrack:
     expiration-ms: 3600000
   cors:
     allowed-origins: http://localhost:3000
+  storage:
+    upload-dir: ${java.io.tmpdir}/cowtrack-test-uploads
 
 logging:
   level:

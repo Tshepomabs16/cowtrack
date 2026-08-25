@@ -31,13 +31,16 @@ const Cows = () => {
           search: searchTerm || undefined
         };
 
+        // The API returns a plain list; the axios interceptor has already
+        // unwrapped the ApiResponse envelope.
         const response = await cowsAPI.getAll(params);
-        setCows(response.data.cows);
-        setPagination({
-          ...pagination,
-          total: response.data.total,
-          totalPages: response.data.totalPages
-        });
+        const list = Array.isArray(response.data) ? response.data : [];
+        setCows(list);
+        setPagination(prev => ({
+          ...prev,
+          total: list.length,
+          totalPages: Math.max(1, Math.ceil(list.length / prev.limit))
+        }));
       } catch (error) {
         console.error('Error fetching cows:', error);
         alert('Failed to load cattle data');
@@ -50,7 +53,7 @@ const Cows = () => {
       if (window.confirm('Are you sure you want to remove this cow?')) {
         try {
           await cowsAPI.delete(id);
-          setCows(cows.filter(cow => cow.id !== id));
+          setCows(cows.filter(cow => cow.cowId !== id));
           alert('Cow removed successfully');
         } catch (error) {
           console.error('Error deleting cow:', error);
@@ -73,7 +76,7 @@ const Cows = () => {
     if (!searchTerm) return true;
     const query = searchTerm.toLowerCase();
     return cow.name?.toLowerCase().includes(query)
-        || cow.tag?.toLowerCase().includes(query);
+        || cow.tagId?.toLowerCase().includes(query);
   });
 
   return (
@@ -114,14 +117,14 @@ const Cows = () => {
 
       <div className="cows-grid">
         {filteredCows.map(cow => (
-          <div key={cow.id} className="cow-card">
+          <div key={cow.cowId} className="cow-card">
             <div className="cow-header">
               <div className="cow-icon">
                 <GiCow />
               </div>
               <div className="cow-info">
                 <h3>{cow.name}</h3>
-                <p className="cow-tag">Tag: {cow.tag}</p>
+                <p className="cow-tag">Tag: {cow.tagId}</p>
               </div>
               <span
                 className="status-badge"
@@ -165,13 +168,13 @@ const Cows = () => {
             </div>
 
             <div className="cow-actions">
-              <button className="btn-view" onClick={() => window.location.href = `/cows/${cow.id}`}>
+              <button className="btn-view" onClick={() => window.location.href = `/cows/${cow.cowId}`}>
                 View Details
               </button>
               <button className="btn-edit">
                 <FiEdit2 />
               </button>
-              <button className="btn-delete" onClick={() => handleDeleteCow(cow.id)}>
+              <button className="btn-delete" onClick={() => handleDeleteCow(cow.cowId)}>
                 <FiTrash2 />
               </button>
             </div>

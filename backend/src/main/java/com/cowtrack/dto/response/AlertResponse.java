@@ -18,4 +18,10 @@ public class AlertResponse {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime resolvedAt;
+
+    /** Derived from alertType; see AlertServiceImpl#deriveSeverity. */
+    private String severity;
+
+    /** Human-readable heading for the alert card, derived from alertType. */
+    private String title;
 }

@@ -7,6 +7,8 @@ import com.cowtrack.entity.Geofence;
 import com.cowtrack.entity.LocationRecord;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
+
 @Component
 public class CowMapper {
 
@@ -15,6 +17,7 @@ public class CowMapper {
         cow.setTagId(request.getTagId());
         cow.setName(request.getName());
         cow.setDateOfBirth(request.getDateOfBirth());
+        cow.setBreed(request.getBreed());
         cow.setCreatedAt(java.time.LocalDateTime.now());
         // Parent relationships will be set in service
         return cow;
@@ -27,7 +30,9 @@ public class CowMapper {
         response.setTagId(cow.getTagId());
         response.setName(cow.getName());
         response.setDateOfBirth(cow.getDateOfBirth());
+        response.setBreed(cow.getBreed());
         response.setCreatedAt(cow.getCreatedAt());
+        response.setStatus(deriveStatus(lastLocation, hasActiveAlerts));
 
         // Set parent info if available
         if (cow.getMother() != null) {
@@ -51,5 +56,22 @@ public class CowMapper {
         response.setHasActiveAlerts(hasActiveAlerts);
 
         return response;
+    }
+
+    /**
+     * Derives the status the cattle list filters on. The domain has no status column,
+     * so it is inferred from signals that do exist: an unresolved alert, or a collar
+     * that has not reported recently.
+     */
+    private String deriveStatus(LocationRecord lastLocation, Boolean hasActiveAlerts) {
+        if (Boolean.TRUE.equals(hasActiveAlerts)) {
+            return "alert";
+        }
+        if (lastLocation == null
+                || lastLocation.getRecordedAt() == null
+                || lastLocation.getRecordedAt().isBefore(LocalDateTime.now().minusHours(24))) {
+            return "inactive";
+        }
+        return "healthy";
     }
 }

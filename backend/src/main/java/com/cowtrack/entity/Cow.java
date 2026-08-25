@@ -28,6 +28,10 @@ public class Cow {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
+    /** Breed name, e.g. Holstein. Drives the breed distribution chart. */
+    @Column
+    private String breed;
+
     // Mother relationship (self-referencing)
     @ManyToOne
     @JoinColumn(name = "mother_id")

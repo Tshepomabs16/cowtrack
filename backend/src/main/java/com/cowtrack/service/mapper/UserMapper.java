@@ -15,6 +15,8 @@ public class UserMapper {
         // Password will be hashed in service
         user.setPasswordHash(request.getPassword());
         user.setRole(User.Role.valueOf(request.getRole().toUpperCase()));
+        user.setPhone(request.getPhone());
+        user.setFarmName(request.getFarmName());
         user.setCreatedAt(java.time.LocalDateTime.now());
         return user;
     }
@@ -25,6 +27,11 @@ public class UserMapper {
         response.setFullName(user.getFullName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole().name());
+        response.setPhone(user.getPhone());
+        response.setFarmName(user.getFarmName());
+        response.setLocation(user.getLocation());
+        response.setTimezone(user.getTimezone());
+        response.setLanguage(user.getLanguage());
         response.setCreatedAt(user.getCreatedAt());
         // Additional stats can be populated in service
         return response;

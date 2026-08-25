@@ -31,6 +31,23 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    // Profile details. The registration form already collects phone and farm name;
+    // the remainder are editable from the settings page.
+    @Column
+    private String phone;
+
+    @Column(name = "farm_name")
+    private String farmName;
+
+    @Column
+    private String location;
+
+    @Column
+    private String timezone;
+
+    @Column
+    private String language;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

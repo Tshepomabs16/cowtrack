@@ -145,8 +145,82 @@ public class AlertServiceImpl implements AlertService {
         response.setMessage(alert.getMessage());
         response.setIsResolved(alert.getIsResolved());
         response.setCreatedAt(alert.getCreatedAt());
+        response.setSeverity(deriveSeverity(alert.getAlertType()));
+        response.setTitle(deriveTitle(alert.getAlertType()));
         // Note: Your schema doesn't have resolvedAt field
         // response.setResolvedAt(alert.getResolvedAt());
         return response;
+    }
+
+    /**
+     * Maps an alert type onto the severity band the alerts page filters by. The
+     * domain has no severity column, so it is derived from the type: anything that
+     * implies the animal is unaccounted for is treated as critical.
+     */
+    /** A readable heading for each alert type. */
+    private String deriveTitle(Alert.AlertType alertType) {
+        if (alertType == null) {
+            return "Alert";
+        }
+        return switch (alertType) {
+            case GEOFENCE_BREACH -> "Geofence Breach";
+            case NO_SIGNAL -> "GPS Signal Lost";
+            case NIGHT_MOVEMENT -> "Unusual Night Movement";
+            case DEVICE_REMOVED -> "Collar Removed";
+        };
+    }
+
+    private String deriveSeverity(Alert.AlertType alertType) {
+        if (alertType == null) {
+            return "low";
+        }
+        return switch (alertType) {
+            case GEOFENCE_BREACH, DEVICE_REMOVED -> "critical";
+            case NO_SIGNAL -> "high";
+            case NIGHT_MOVEMENT -> "medium";
+        };
+    }
+
+    @Override
+    public int resolveAllAlerts() {
+        List<Alert> open = alertRepository.findByIsResolvedFalseOrderByCreatedAtDesc();
+        open.forEach(alert -> alert.setIsResolved(true));
+        alertRepository.saveAll(open);
+
+        log.info("Resolved {} open alerts", open.size());
+        return open.size();
+    }
+
+    @Override
+    public void deleteAlert(Long alertId) {
+        if (!alertRepository.existsById(alertId)) {
+            throw new ResourceNotFoundException("Alert not found with id: " + alertId);
+        }
+        alertRepository.deleteById(alertId);
+    }
+
+    @Override
+    public java.util.Map<String, Object> getAlertStats() {
+        List<Alert> all = alertRepository.findAll();
+
+        java.util.Map<String, Long> bySeverity = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Long> byType = new java.util.LinkedHashMap<>();
+        long unresolved = 0;
+
+        for (Alert alert : all) {
+            if (!Boolean.TRUE.equals(alert.getIsResolved())) {
+                unresolved++;
+                bySeverity.merge(deriveSeverity(alert.getAlertType()), 1L, Long::sum);
+            }
+            byType.merge(alert.getAlertType().name(), 1L, Long::sum);
+        }
+
+        java.util.Map<String, Object> stats = new java.util.LinkedHashMap<>();
+        stats.put("total", all.size());
+        stats.put("unresolved", unresolved);
+        stats.put("resolved", all.size() - unresolved);
+        stats.put("bySeverity", bySeverity);
+        stats.put("byType", byType);
+        return stats;
     }
 }

@@ -15,4 +15,12 @@ public interface AlertService {
     List<AlertResponse> filterAlerts(AlertFilterRequest filter);
     void createGeofenceBreachAlert(Long cowId, boolean isInside);
     void createNoSignalAlert(Long cowId, long hoursWithoutSignal);
+
+    /** Resolves every open alert across the herd. */
+    int resolveAllAlerts();
+
+    void deleteAlert(Long alertId);
+
+    /** Counts by severity and type for the alerts dashboard. */
+    java.util.Map<String, Object> getAlertStats();
 }

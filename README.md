@@ -36,13 +36,31 @@ output, producing one jar that serves both.
 
 The core entities live in `backend/src/main/java/com/cowtrack/entity/`:
 
-- **Cow** — the tracked animal
+- **Cow** — the tracked animal, including breed
 - **LocationRecord** — timestamped GPS positions
 - **Geofence** — boundary polygons; breaches are evaluated by `GeofenceCalculator`
 - **Alert** — raised on geofence breach and other conditions
-- **HealthRecord** — veterinary and health history
+- **HealthRecord** — veterinary diagnosis and treatment history
+- **HealthMetric** — collar vitals (temperature, heart rate, activity)
+- **Vaccination** — administered and scheduled doses
+- **ProductionRecord** — daily milk yield and weight
+- **FinancialRecord** — revenue and cost lines
 - **Reminder** — scheduled husbandry tasks
-- **User** — account and ownership
+- **User** / **UserPreferences** — account, profile and display settings
+
+### Derived fields
+
+Some values the UI filters on are computed rather than stored, so they cannot drift
+out of step with the data they summarise:
+
+| Field | Derived from |
+|---|---|
+| `AlertResponse.severity` | `alertType` — breach and collar removal are critical |
+| `AlertResponse.title` | `alertType`, as a readable heading |
+| `CowResponse.status` | active alerts, collar freshness, and vitals; a warning reading always wins |
+| `CowResponse.age` | `dateOfBirth` |
+| `CowResponse.temperature` / `heartRate` / `lastCheck` | most recent `HealthMetric` |
+| `Vaccination.status` | `administeredDate` and `nextDueDate` |
 
 ## Running it
 
@@ -131,16 +149,34 @@ Tests run against an in-memory H2 database via the `test` profile, so no MySQL
 instance is needed. `AuthIntegrationTest` covers the login flow end to end;
 `SpaRoutingTest` guards the boundary between client routes and API paths.
 
+## API response envelope
+
+Successful responses are wrapped:
+
+```json
+{ "success": true, "message": "...", "data": { }, "timestamp": "..." }
+```
+
+The axios interceptor in `services/api.js` unwraps this, so `response.data` is always
+the payload itself. The auth endpoints are the one exception — they return
+`{ token, user }` unwrapped, because that is the shape `AuthContext` reads.
+
+`ApiContractTest` walks every path declared in `services/api.js` and asserts the
+backend answers it, so a client call cannot silently start 404ing.
+
 ## Known issues
 
 - `REACT_APP_WS_URL` has no server behind it — the backend has no WebSocket starter
   on the classpath, so `services/websocket.js` will never connect. The Live Map falls
   back to the initial fetch.
-- **The frontend and backend APIs still largely disagree.** `services/api.js` declares
-  endpoints (`/settings/*`, `/upload/*`, `/analytics/*`, `/locations/live`) that the
-  backend does not implement. Auth is reconciled; the rest is not.
-- Six pages still render hardcoded mock data rather than live API results:
-  Dashboard, Analytics, CowDetail, Health, Reminders, Settings.
+- `authAPI.forgotPassword` and `resetPassword` are **not implemented**: password reset
+  needs an outbound mail service the application does not have. They are marked as
+  such in `services/api.js` and will 404.
+- Five pages still render hardcoded mock data rather than calling the endpoints that
+  now exist: Dashboard, Analytics, CowDetail, Health, Reminders. The API is ready for
+  them; the components have not been rewired.
+- Analytics returns real figures but there is no UI yet for **entering** production or
+  financial records — those tables populate through the API only.
 
 ## Author
 

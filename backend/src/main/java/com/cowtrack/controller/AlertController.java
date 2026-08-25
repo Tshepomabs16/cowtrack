@@ -74,4 +74,22 @@ public class AlertController extends BaseController {
         alertService.createNoSignalAlert(cowId, hours);
         return success("Test no signal alert created", null);
     }
+
+    /** Resolves every open alert. */
+    @PutMapping("/read/all")
+    public ResponseEntity<?> resolveAll() {
+        int resolved = alertService.resolveAllAlerts();
+        return success("Resolved " + resolved + " alerts", resolved);
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<?> getStats() {
+        return success(alertService.getAlertStats());
+    }
+
+    @DeleteMapping("/{alertId}")
+    public ResponseEntity<?> deleteAlert(@PathVariable Long alertId) {
+        alertService.deleteAlert(alertId);
+        return success("Alert deleted successfully", null);
+    }
 }

@@ -209,4 +209,16 @@ public class LocationServiceImpl implements LocationService {
             }
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LocationResponse> getLiveLocations() {
+        return cowRepository.findAll().stream()
+                .map(cow -> locationRecordRepository
+                        .findLatestByCowId(cow.getCowId())
+                        .orElse(null))
+                .filter(java.util.Objects::nonNull)
+                .map(locationMapper::toResponse)
+                .collect(java.util.stream.Collectors.toList());
+    }
 }

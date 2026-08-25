@@ -5,10 +5,13 @@ import com.cowtrack.dto.response.UserResponse;
 import com.cowtrack.entity.User;
 import com.cowtrack.exception.BusinessException;
 import com.cowtrack.exception.ResourceNotFoundException;
+import com.cowtrack.exception.UnauthorizedException;
 import com.cowtrack.repository.UserRepository;
 import com.cowtrack.service.UserService;
 import com.cowtrack.service.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -91,10 +94,18 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public User getAuthenticatedUser() {
-        // This will be implemented when we add Spring Security
-        // For now, return the first user or null
-        return userRepository.findAll().stream().findFirst().orElse(null);
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null) {
+            throw new UnauthorizedException("No authenticated user");
+        }
+
+        // JwtAuthenticationFilter puts the user's email in the principal name.
+        return userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new UnauthorizedException("Authenticated user no longer exists"));
     }
 
     @Override

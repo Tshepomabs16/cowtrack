@@ -8,6 +8,9 @@ public interface LocationService {
     LocationResponse recordLocation(LocationRequest request);
     List<LocationResponse> getLocationHistory(Long cowId, Integer limit);
     LocationResponse getCurrentLocation(Long cowId);
+
+    /** Most recent fix for every animal that has ever reported one. */
+    List<LocationResponse> getLiveLocations();
     List<LocationResponse> getLocationsInTimeRange(Long cowId, java.time.LocalDateTime start, java.time.LocalDateTime end);
     void checkGeofenceViolations(Long cowId);
     double calculateDistanceTraveled(Long cowId, java.time.LocalDateTime start, java.time.LocalDateTime end);

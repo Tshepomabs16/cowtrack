@@ -1,5 +1,6 @@
 package com.cowtrack.controller;
 
+import com.cowtrack.dto.request.BulkCowUpdateRequest;
 import com.cowtrack.dto.request.CowRequest;
 import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.service.CowService;
@@ -81,5 +82,16 @@ public class CowController extends BaseController {
         // For now, return basic info
         CowResponse cow = cowService.getCowById(cowId);
         return success("Lineage endpoint - implement lineage logic", cow);
+    }
+
+    /**
+     * Partial update of many animals at once. Declared before the {@code /{cowId}}
+     * mapping would otherwise be considered, since "bulk" is not a numeric id.
+     */
+    @PutMapping("/bulk")
+    public ResponseEntity<?> bulkUpdate(
+            @Valid @RequestBody List<BulkCowUpdateRequest> updates) {
+        List<CowResponse> cows = cowService.bulkUpdate(updates);
+        return success("Updated " + cows.size() + " cows", cows);
     }
 }

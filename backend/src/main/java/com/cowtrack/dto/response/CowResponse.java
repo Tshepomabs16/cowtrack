@@ -22,4 +22,23 @@ public class CowResponse {
     private LocationResponse lastLocation;
     private Integer healthRecordCount;
     private Boolean hasActiveAlerts;
+
+    /** Derived, not persisted. See CowMapper#deriveStatus. */
+    private String status;
+
+    /** Age in years, from dateOfBirth. */
+    private Integer age;
+
+    /** Latest collar vitals, when the animal has reported any. */
+    private java.math.BigDecimal temperature;
+    private java.math.BigDecimal heartRate;
+
+    /** Most recent recorded weight in kilograms. */
+    private java.math.BigDecimal weight;
+
+    /** When vitals were last received. */
+    private java.time.LocalDateTime lastCheck;
+
+    /** Human-readable last known position. */
+    private String location;
 }

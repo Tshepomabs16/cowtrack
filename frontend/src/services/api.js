@@ -27,9 +27,27 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+// Response interceptor.
+//
+// The API wraps successful payloads in an envelope:
+//   { success, message, data, timestamp }
+// Callers only ever want the payload, so unwrap it here and let `response.data`
+// mean the same thing everywhere. The auth endpoints return their body unwrapped
+// already, so the check is for the envelope's shape rather than a path.
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const body = response.data;
+    const isEnvelope =
+      body !== null &&
+      typeof body === 'object' &&
+      typeof body.success === 'boolean' &&
+      'data' in body;
+
+    if (isEnvelope) {
+      return { ...response, data: body.data, meta: { message: body.message } };
+    }
+    return response;
+  },
   (error) => {
     // A 401 from /auth/* is a failed sign-in attempt, not an expired session.
     // Redirecting here would reload the page and discard the error message the
@@ -50,10 +68,13 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   register: (userData) => api.post('/auth/register', userData),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
   verifyToken: () => api.get('/auth/verify'),
   logout: () => api.post('/auth/logout'),
+
+  // NOT IMPLEMENTED on the backend: password reset needs an outbound mail
+  // service, which the application does not have. Calling these will 404.
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
 export const cowsAPI = {
@@ -62,18 +83,20 @@ export const cowsAPI = {
   create: (cowData) => api.post('/cows', cowData),
   update: (id, cowData) => api.put(`/cows/${id}`, cowData),
   delete: (id) => api.delete(`/cows/${id}`),
-  getHealthMetrics: (id) => api.get(`/cows/${id}/health`),
-  getLocationHistory: (id) => api.get(`/cows/${id}/locations`),
+  getHealthMetrics: (id) => api.get(`/health/cows/${id}`),
+  getLocationHistory: (id) => api.get(`/locations/cow/${id}/history`),
   bulkUpdate: (cowsData) => api.put('/cows/bulk', cowsData),
 };
 
+// Alerts are raised by the backend (geofence breaches, signal loss), never by the
+// client, so there is deliberately no create() here.
 export const alertsAPI = {
   getAll: (params) => api.get('/alerts', { params }),
-  getUnreadCount: () => api.get('/alerts/unread/count'),
-  markAsRead: (id) => api.put(`/alerts/${id}/read`),
+  getActive: () => api.get('/alerts/active'),
+  getUnreadCount: () => api.get('/alerts/count/active'),
+  markAsRead: (id) => api.put(`/alerts/${id}/resolve`),
   markAllAsRead: () => api.put('/alerts/read/all'),
   delete: (id) => api.delete(`/alerts/${id}`),
-  create: (alertData) => api.post('/alerts', alertData),
   getStats: () => api.get('/alerts/stats'),
 };
 
@@ -88,11 +111,11 @@ export const healthAPI = {
 
 export const locationsAPI = {
   getLiveLocations: () => api.get('/locations/live'),
-  getGeofences: () => api.get('/locations/geofences'),
-  createGeofence: (data) => api.post('/locations/geofences', data),
-  updateGeofence: (id, data) => api.put(`/locations/geofences/${id}`, data),
-  deleteGeofence: (id) => api.delete(`/locations/geofences/${id}`),
-  getHistory: (cowId, params) => api.get(`/locations/cows/${cowId}/history`, { params }),
+  getGeofences: (caretakerId) => api.get(`/geofences/caretaker/${caretakerId}`),
+  createGeofence: (data) => api.post('/geofences', data),
+  updateGeofence: (id, data) => api.put(`/geofences/${id}`, data),
+  deleteGeofence: (id) => api.delete(`/geofences/${id}`),
+  getHistory: (cowId, params) => api.get(`/locations/cow/${cowId}/history`, { params }),
 };
 
 export const analyticsAPI = {
@@ -109,7 +132,7 @@ export const remindersAPI = {
   update: (id, data) => api.put(`/reminders/${id}`, data),
   delete: (id) => api.delete(`/reminders/${id}`),
   markComplete: (id) => api.put(`/reminders/${id}/complete`),
-  getUpcoming: () => api.get('/reminders/upcoming'),
+  getUpcoming: () => api.get('/reminders/due'),
 };
 
 export const settingsAPI = {

@@ -11,9 +11,7 @@ import lombok.Data;
  * Registration payload for {@code POST /api/auth/register}.
  *
  * <p>The web client posts the display name as {@code name}, so that spelling is
- * accepted alongside {@code fullName}. Extra fields the client sends but the
- * {@link com.cowtrack.entity.User} entity has no column for (phone, farmName)
- * are ignored.
+ * accepted alongside {@code fullName}.
  */
 @Data
 public class RegisterRequest {
@@ -35,4 +33,9 @@ public class RegisterRequest {
     @Pattern(regexp = "(?i)FARMER|CARETAKER|ADMIN",
             message = "Role must be FARMER, CARETAKER, or ADMIN")
     private String role;
+
+    /** Optional profile details collected by the registration form. */
+    private String phone;
+
+    private String farmName;
 }
