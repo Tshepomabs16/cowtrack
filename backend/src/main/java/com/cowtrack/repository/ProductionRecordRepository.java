@@ -31,6 +31,21 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
     List<Object[]> aggregateDailyTotals(@Param("start") LocalDate start,
                                         @Param("end") LocalDate end);
 
+    /**
+     * Per-animal production over a window, best first. Rows of
+     * {@code [cowId, cowName, totalMilk, avgMilk, weightGain]}.
+     */
+    @Query("""
+            SELECT p.cow.cowId, p.cow.name, SUM(p.milkLitres), AVG(p.milkLitres),
+                   MAX(p.weightKg) - MIN(p.weightKg)
+            FROM ProductionRecord p
+            WHERE p.recordDate BETWEEN :start AND :end
+            GROUP BY p.cow.cowId, p.cow.name
+            ORDER BY SUM(p.milkLitres) DESC
+            """)
+    List<Object[]> aggregatePerCow(@Param("start") LocalDate start,
+                                   @Param("end") LocalDate end);
+
     @Query("""
             SELECT AVG(p.milkLitres) FROM ProductionRecord p
             WHERE p.recordDate BETWEEN :start AND :end

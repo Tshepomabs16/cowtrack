@@ -1,43 +1,100 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { FiTrendingUp, FiUsers, FiDollarSign, FiPieChart } from 'react-icons/fi';
+import { analyticsAPI } from '../services/api';
 import './Analytics.css';
+
+// Palette for the breed pie chart. Breeds come from the data, so colours are
+// assigned by position rather than hardcoded per breed name.
+const SLICE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
 
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState('month');
+  const [financials, setFinancials] = useState(null);
+  const [production, setProduction] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
+  const [predictions, setPredictions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample data
-  const revenueData = [
-    { month: 'Jan', revenue: 45000, cost: 32000 },
-    { month: 'Feb', revenue: 52000, cost: 35000 },
-    { month: 'Mar', revenue: 48000, cost: 33000 },
-    { month: 'Apr', revenue: 61000, cost: 38000 },
-    { month: 'May', revenue: 55000, cost: 36000 },
-    { month: 'Jun', revenue: 68000, cost: 42000 },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
 
-  const breedDistribution = [
-    { name: 'Holstein', value: 40, color: '#3b82f6' },
-    { name: 'Jersey', value: 25, color: '#10b981' },
-    { name: 'Angus', value: 20, color: '#f59e0b' },
-    { name: 'Hereford', value: 15, color: '#8b5cf6' },
-  ];
+    const load = async () => {
+      try {
+        const [fin, prod, dash, pred] = await Promise.all([
+          analyticsAPI.getFinancials({ range: timeRange }),
+          analyticsAPI.getProductionTrends({ range: timeRange }),
+          analyticsAPI.getDashboardStats(),
+          analyticsAPI.getPredictions(),
+        ]);
+        if (cancelled) return;
+        setFinancials(fin.data);
+        setProduction(prod.data);
+        setDashboard(dash.data);
+        setPredictions(Array.isArray(pred.data) ? pred.data : []);
+      } catch (error) {
+        console.error('Error loading analytics:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
 
-  const productivityData = [
-    { day: 'Mon', milk: 420, weight: 450 },
-    { day: 'Tue', milk: 450, weight: 455 },
-    { day: 'Wed', milk: 410, weight: 452 },
-    { day: 'Thu', milk: 480, weight: 460 },
-    { day: 'Fri', milk: 460, weight: 458 },
-    { day: 'Sat', milk: 430, weight: 453 },
-    { day: 'Sun', milk: 440, weight: 456 },
-  ];
+    load();
+    return () => { cancelled = true; };
+  }, [timeRange]);
 
-  const kpis = [
-    { title: 'Total Revenue', value: '$325,000', change: '+12.5%', icon: <FiDollarSign />, color: '#10b981' },
-    { title: 'Avg Milk Production', value: '445 L/day', change: '+5.2%', icon: <FiTrendingUp />, color: '#3b82f6' },
-    { title: 'Cattle Growth Rate', value: '8.2%', change: '+1.3%', icon: <FiUsers />, color: '#8b5cf6' },
-    { title: 'Operational Efficiency', value: '92%', change: '+2.1%', icon: <FiPieChart />, color: '#f59e0b' },
+  const revenueData = (financials?.series || []).map((point) => ({
+    month: point.month,
+    revenue: Number(point.revenue) || 0,
+    cost: Number(point.cost) || 0,
+  }));
+
+  const breedDistribution = (production?.breedDistribution || []).map((slice, index) => ({
+    name: slice.name,
+    value: Number(slice.value) || 0,
+    color: SLICE_COLORS[index % SLICE_COLORS.length],
+  }));
+
+  const productivityData = (production?.series || []).map((point) => ({
+    day: point.day,
+    milk: Number(point.milk) || 0,
+    weight: Number(point.weight) || 0,
+  }));
+
+  const money = (value) =>
+    value === null || value === undefined ? '—' : `R${Number(value).toLocaleString()}`;
+
+  const topProducers = production?.topProducers || [];
+  const costBreakdown = financials?.costBreakdown || [];
+
+  const milkTrend = predictions.find((p) => p.metric === 'Milk production');
+
+  const kpis = loading ? [] : [
+    {
+      title: 'Total Revenue',
+      value: money(financials?.totalRevenue),
+      change: `Net ${money(financials?.netProfit)}`,
+      icon: <FiDollarSign />, color: '#10b981',
+    },
+    {
+      title: 'Avg Milk Production',
+      value: dashboard?.averageMilkPerDay ? `${dashboard.averageMilkPerDay} L/day` : '—',
+      change: milkTrend?.trend || 'No history',
+      icon: <FiTrendingUp />, color: '#3b82f6',
+    },
+    {
+      title: 'Herd Size',
+      value: dashboard?.totalCows ?? '—',
+      change: `${breedDistribution.length} breeds`,
+      icon: <FiUsers />, color: '#8b5cf6',
+    },
+    {
+      title: 'Open Alerts',
+      value: dashboard?.activeAlerts ?? '—',
+      change: dashboard?.activeAlerts ? 'Needs attention' : 'All clear',
+      icon: <FiPieChart />, color: '#f59e0b',
+    },
   ];
 
   return (
@@ -82,7 +139,7 @@ const Analytics = () => {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, '']} />
+              <Tooltip formatter={(value) => [`R${Number(value).toLocaleString()}`, '']} />
               <Legend />
               <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} />
               <Line type="monotone" dataKey="cost" stroke="#ef4444" strokeWidth={2} />
@@ -108,7 +165,7 @@ const Analytics = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`${value}%`, '']} />
+              <Tooltip formatter={(value) => [`${value} head`, '']} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -154,34 +211,28 @@ const Analytics = () => {
             <thead>
               <tr>
                 <th>Cow Name</th>
-                <th>Milk Production</th>
-                <th>Weight Gain</th>
-                <th>Health Score</th>
-                <th>Efficiency</th>
+                <th>Avg Milk</th>
+                <th>Weight Change</th>
+                <th>Total Milk</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                { name: 'Bessie-001', milk: '48L/day', weight: '+12kg', health: 92, efficiency: '94%' },
-                { name: 'Daisy-002', milk: '45L/day', weight: '+10kg', health: 88, efficiency: '91%' },
-                { name: 'Buttercup-004', milk: '42L/day', weight: '+8kg', health: 90, efficiency: '89%' },
-                { name: 'Clover-005', milk: '40L/day', weight: '+9kg', health: 85, efficiency: '87%' },
-                { name: 'Moo-003', milk: '38L/day', weight: '+7kg', health: 65, efficiency: '82%' },
-              ].map((cow, index) => (
-                <tr key={index}>
-                  <td><strong>{cow.name}</strong></td>
-                  <td>{cow.milk}</td>
-                  <td className="positive">{cow.weight}</td>
-                  <td>
-                    <div className="score-bar">
-                      <div
-                        className="score-fill"
-                        style={{ width: `${cow.health}%` }}
-                      ></div>
-                      <span>{cow.health}/100</span>
-                    </div>
+              {topProducers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="empty-row">
+                    {loading ? 'Loading…' : 'No production records for this period'}
                   </td>
-                  <td>{cow.efficiency}</td>
+                </tr>
+              ) : topProducers.map((cow) => (
+                <tr key={cow.cowId}>
+                  <td><strong>{cow.name}</strong></td>
+                  <td>{cow.averageMilk ?? '—'} L/day</td>
+                  <td className={Number(cow.weightGain) >= 0 ? 'positive' : ''}>
+                    {cow.weightGain === null || cow.weightGain === undefined
+                      ? '—'
+                      : `${Number(cow.weightGain) >= 0 ? '+' : ''}${cow.weightGain}kg`}
+                  </td>
+                  <td>{cow.totalMilk ?? '—'} L</td>
                 </tr>
               ))}
             </tbody>
@@ -194,34 +245,29 @@ const Analytics = () => {
             <thead>
               <tr>
                 <th>Category</th>
-                <th>Monthly Cost</th>
+                <th>Cost</th>
                 <th>% of Total</th>
-                <th>Trend</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                { category: 'Feed', cost: '$12,500', percent: '42%', trend: '▼ 2%' },
-                { category: 'Veterinary', cost: '$3,200', percent: '11%', trend: '▲ 5%' },
-                { category: 'Labor', cost: '$8,000', percent: '27%', trend: '▼ 1%' },
-                { category: 'Maintenance', cost: '$2,500', percent: '8%', trend: '▲ 3%' },
-                { category: 'Utilities', cost: '$1,800', percent: '6%', trend: '▼ 4%' },
-                { category: 'Other', cost: '$1,000', percent: '3%', trend: '▬ 0%' },
-              ].map((item, index) => (
-                <tr key={index}>
+              {costBreakdown.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="empty-row">
+                    {loading ? 'Loading…' : 'No costs recorded for this period'}
+                  </td>
+                </tr>
+              ) : costBreakdown.map((item) => (
+                <tr key={item.category}>
                   <td>{item.category}</td>
-                  <td><strong>{item.cost}</strong></td>
+                  <td><strong>{money(item.amount)}</strong></td>
                   <td>
                     <div className="percent-bar">
                       <div
                         className="percent-fill"
-                        style={{ width: item.percent }}
+                        style={{ width: `${item.percent}%` }}
                       ></div>
-                      <span>{item.percent}</span>
+                      <span>{item.percent}%</span>
                     </div>
-                  </td>
-                  <td className={item.trend.includes('▲') ? 'negative' : item.trend.includes('▼') ? 'positive' : 'neutral'}>
-                    {item.trend}
                   </td>
                 </tr>
               ))}
@@ -233,22 +279,21 @@ const Analytics = () => {
       <div className="insights-section">
         <h3>Key Insights & Recommendations</h3>
         <div className="insights-grid">
-          <div className="insight-card">
-            <h4>📈 Opportunity</h4>
-            <p>Milk production increased by 5.2% this month. Consider expanding the high-performing herd.</p>
-          </div>
-          <div className="insight-card">
-            <h4>⚠️ Alert</h4>
-            <p>Veterinary costs up by 5%. Schedule preventive checkups to reduce emergency costs.</p>
-          </div>
-          <div className="insight-card">
-            <h4>💡 Recommendation</h4>
-            <p>Optimize feeding schedule for Barn 2 - current efficiency at 78% vs target 85%.</p>
-          </div>
-          <div className="insight-card">
-            <h4>🎯 Target</h4>
-            <p>Increase operational efficiency to 95% by optimizing labor allocation.</p>
-          </div>
+          {predictions.map((prediction) => (
+            <div className="insight-card" key={prediction.metric}>
+              <h4>📈 {prediction.metric}</h4>
+              <p>
+                Currently {prediction.current ?? '—'}, projected {prediction.projected ?? '—'}.
+                {' '}{prediction.trend}
+              </p>
+            </div>
+          ))}
+          {!loading && predictions.length === 0 && (
+            <div className="insight-card">
+              <h4>No projections yet</h4>
+              <p>Record production and financial data to see trends here.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -75,10 +75,24 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 })
                 .collect(Collectors.toList());
 
+        List<Map<String, Object>> topProducers = productionRepository
+                .aggregatePerCow(start, end).stream()
+                .map(row -> {
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("cowId", row[0]);
+                    entry.put("name", row[1]);
+                    entry.put("totalMilk", round(row[2]));
+                    entry.put("averageMilk", round(row[3]));
+                    entry.put("weightGain", round(row[4]));
+                    return entry;
+                })
+                .collect(Collectors.toList());
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("range", range);
         result.put("series", series);
         result.put("breedDistribution", breedDistribution());
+        result.put("topProducers", topProducers);
         return result;
     }
 
@@ -138,7 +152,29 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         result.put("totalRevenue", revenue);
         result.put("totalCost", cost);
         result.put("netProfit", revenue.subtract(cost));
+        result.put("costBreakdown", costBreakdown(user.getUserId(), start, end, cost));
         return result;
+    }
+
+    /** Cost per category with each category's share of the total. */
+    private List<Map<String, Object>> costBreakdown(Long userId, LocalDate start,
+                                                    LocalDate end, BigDecimal totalCost) {
+        return financialRepository
+                .aggregateByCategory(userId, FinancialRecord.EntryType.COST, start, end)
+                .stream()
+                .map(row -> {
+                    BigDecimal amount = (BigDecimal) row[1];
+                    Map<String, Object> line = new LinkedHashMap<>();
+                    line.put("category", row[0]);
+                    line.put("amount", amount);
+                    // Guard against dividing by zero when nothing has been spent.
+                    line.put("percent", totalCost.signum() == 0
+                            ? BigDecimal.ZERO
+                            : amount.multiply(BigDecimal.valueOf(100))
+                                    .divide(totalCost, 1, RoundingMode.HALF_UP));
+                    return line;
+                })
+                .collect(Collectors.toList());
     }
 
     @Override

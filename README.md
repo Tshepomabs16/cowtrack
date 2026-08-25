@@ -25,7 +25,7 @@ output, producing one jar that serves both.
 | Language | Java 17 | JavaScript (ES2020+) |
 | Framework | Spring Boot 3.5.9 | React 19 + React Router 7 |
 | Build | Maven (`mvnw`) | react-scripts 5 |
-| Persistence | Spring Data JPA → MySQL 8 | — |
+| Persistence | Spring Data JPA → PostgreSQL 16 | — |
 | UI | — | MUI 7, Emotion |
 | Mapping | JTS (geometry/geofencing) | Leaflet + react-leaflet, leaflet-draw |
 | Charts | — | Recharts |
@@ -71,8 +71,8 @@ static content, so there is nothing separate to deploy.
 ### Prerequisites
 
 - JDK 17+
-- MySQL 8 on **port 3307** with a `cowtrack` database — *or* use the `dev` profile
-  below, which needs no database at all
+- PostgreSQL 14+ with a `cowtrack` database — *or* use the `dev` profile below,
+  which needs no database at all
 
 Node is **not** required: the build downloads its own pinned copy.
 
@@ -86,7 +86,17 @@ java -jar target/cowtrack-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=de
 
 Open <http://localhost:8081>. The `dev` profile uses an in-memory H2 database, so
 you can register an account and click around immediately; data is discarded on exit.
-Drop `--spring.profiles.active=dev` to run against MySQL.
+Drop `--spring.profiles.active=dev` to run against PostgreSQL, supplying the
+password through the environment:
+
+```bash
+createdb cowtrack
+export DB_PASSWORD='...'
+java -jar target/cowtrack-backend-0.0.1-SNAPSHOT.jar
+```
+
+The password is deliberately **not** stored in `application.yml` — this repository
+is public.
 
 ### Working on the frontend
 
@@ -125,8 +135,8 @@ variables for anything deployed.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `DB_HOST` / `DB_PORT` / `DB_NAME` | MySQL connection | `localhost` / `3307` / `cowtrack` |
-| `DB_USERNAME` / `DB_PASSWORD` | MySQL credentials | `root` / *(empty)* |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` | PostgreSQL connection | `localhost` / `5432` / `cowtrack` |
+| `DB_USERNAME` / `DB_PASSWORD` | PostgreSQL credentials | `postgres` / *(empty)* |
 | `JWT_SECRET` | Token signing key, **min 32 chars** | insecure dev default |
 | `JWT_EXPIRATION_MS` | Token lifetime | `86400000` (24h) |
 | `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API | `http://localhost:3000` |
@@ -172,11 +182,13 @@ backend answers it, so a client call cannot silently start 404ing.
 - `authAPI.forgotPassword` and `resetPassword` are **not implemented**: password reset
   needs an outbound mail service the application does not have. They are marked as
   such in `services/api.js` and will 404.
-- Five pages still render hardcoded mock data rather than calling the endpoints that
-  now exist: Dashboard, Analytics, CowDetail, Health, Reminders. The API is ready for
-  them; the components have not been rewired.
-- Analytics returns real figures but there is no UI yet for **entering** production or
-  financial records — those tables populate through the API only.
+- Feeding is not modelled: there is no feed schedule or intake entity, so the
+  Feeding tab on a cow shows an empty state rather than invented figures.
+- There is still no **UI** for entering production or financial records. The
+  endpoints exist (`POST /api/production`, `POST /api/financials`) but data has to
+  be posted directly for now.
+- The application connects as the `postgres` superuser. A role scoped to just the
+  `cowtrack` database would be a better fit before this is deployed anywhere.
 
 ## Author
 

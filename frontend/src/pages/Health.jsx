@@ -1,34 +1,124 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { FiActivity, FiThermometer, FiHeart, FiTrendingUp } from 'react-icons/fi';
+import { analyticsAPI, healthAPI } from '../services/api';
 import './Health.css';
+
+const num = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+
+/** Mean of a numeric field across rows, or null when there is nothing to average. */
+const mean = (rows, pick) => {
+  const values = rows.map(pick).filter(Number.isFinite);
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
 
 const Health = () => {
   const [timeRange, setTimeRange] = useState('7d');
+  const [trends, setTrends] = useState([]);
+  const [herd, setHerd] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const healthData = [
-    { day: 'Mon', temp: 38.4, heart: 65, activity: 85 },
-    { day: 'Tue', temp: 38.2, heart: 68, activity: 82 },
-    { day: 'Wed', temp: 38.6, heart: 70, activity: 78 },
-    { day: 'Thu', temp: 38.3, heart: 66, activity: 88 },
-    { day: 'Fri', temp: 38.5, heart: 64, activity: 90 },
-    { day: 'Sat', temp: 38.7, heart: 72, activity: 76 },
-    { day: 'Sun', temp: 38.4, heart: 65, activity: 84 },
-  ];
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
 
-  const cowHealthData = [
-    { name: 'Bessie-001', temp: 38.5, heart: 65, status: 'Normal', score: 92 },
-    { name: 'Daisy-002', temp: 38.2, heart: 68, status: 'Normal', score: 88 },
-    { name: 'Moo-003', temp: 39.1, heart: 72, status: 'Warning', score: 65 },
-    { name: 'Buttercup-004', temp: 38.3, heart: 64, status: 'Normal', score: 90 },
-    { name: 'Clover-005', temp: 38.6, heart: 70, status: 'Normal', score: 85 },
-  ];
+    const load = async () => {
+      try {
+        const [trendResponse, herdResponse] = await Promise.all([
+          analyticsAPI.getHealthTrends({ range: timeRange }),
+          healthAPI.getMetrics({ range: timeRange }),
+        ]);
+        if (cancelled) return;
 
-  const alerts = [
-    { id: 1, cow: 'Moo-003', metric: 'Temperature', value: '39.1°C', threshold: '38.5°C', time: '2h ago' },
-    { id: 2, cow: 'Bessie-001', metric: 'Heart Rate', value: '72 bpm', threshold: '70 bpm', time: '5h ago' },
-    { id: 3, cow: 'Daisy-002', metric: 'Activity', value: '45%', threshold: '50%', time: '1d ago' },
-  ];
+        setTrends(
+          (trendResponse.data?.series || []).map((point) => ({
+            day: new Date(point.date).toLocaleDateString(undefined, { weekday: 'short' }),
+            temp: num(point.temp),
+            heart: num(point.heart),
+            activity: num(point.activity),
+          }))
+        );
+        setHerd(herdResponse.data);
+      } catch (error) {
+        console.error('Error loading health data:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, [timeRange]);
+
+  const healthData = trends;
+  const thresholds = herd?.thresholds || {};
+
+  const cowHealthData = (herd?.cows || []).map((cow) => ({
+    cowId: cow.cowId,
+    name: cow.cowName,
+    temp: num(cow.temperature),
+    heart: num(cow.heartRate),
+    activity: num(cow.activityLevel),
+    status: cow.status,
+    // Presentation-only summary: start at 100 and deduct for each vital that is
+    // outside its band, scaled by how far outside it sits.
+    score: (() => {
+      let score = 100;
+      const temp = num(cow.temperature);
+      const heart = num(cow.heartRate);
+      const activity = num(cow.activityLevel);
+      if (temp !== null && temp > thresholds.temperature) {
+        score -= Math.min(35, (temp - thresholds.temperature) * 30);
+      }
+      if (heart !== null && heart > thresholds.heartRate) {
+        score -= Math.min(30, heart - thresholds.heartRate);
+      }
+      if (activity !== null && activity < thresholds.activityLevel) {
+        score -= Math.min(30, thresholds.activityLevel - activity);
+      }
+      return Math.max(0, Math.round(score));
+    })(),
+  }));
+
+  // Each vital that is out of band becomes one row in the alerts panel.
+  const alerts = (herd?.cows || []).flatMap((cow) => {
+    const rows = [];
+    const temp = num(cow.temperature);
+    const heart = num(cow.heartRate);
+    const activity = num(cow.activityLevel);
+
+    if (temp !== null && temp > thresholds.temperature) {
+      rows.push({ id: `${cow.cowId}-temp`, cow: cow.cowName, metric: 'Temperature',
+        value: `${temp}°C`, threshold: `${thresholds.temperature}°C`, time: cow.recordedAt });
+    }
+    if (heart !== null && heart > thresholds.heartRate) {
+      rows.push({ id: `${cow.cowId}-heart`, cow: cow.cowName, metric: 'Heart Rate',
+        value: `${heart} bpm`, threshold: `${thresholds.heartRate} bpm`, time: cow.recordedAt });
+    }
+    if (activity !== null && activity < thresholds.activityLevel) {
+      rows.push({ id: `${cow.cowId}-activity`, cow: cow.cowName, metric: 'Activity',
+        value: `${activity}%`, threshold: `${thresholds.activityLevel}%`, time: cow.recordedAt });
+    }
+    return rows;
+  });
+
+  const avgTemp = mean(cowHealthData, (cow) => cow.temp);
+  const avgHeart = mean(cowHealthData, (cow) => cow.heart);
+  const avgActivity = mean(cowHealthData, (cow) => cow.activity);
+  const avgScore = mean(cowHealthData, (cow) => cow.score);
+
+  const show = (value, format) => {
+    if (loading) return '…';
+    if (value === null || value === undefined) return '—';
+    return format(value);
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+  };
 
   return (
     <div className="health-page">
@@ -65,8 +155,8 @@ const Health = () => {
           </div>
           <div className="overview-content">
             <h3>Avg Temperature</h3>
-            <p className="overview-value">38.4°C</p>
-            <p className="overview-change positive">+0.2° from avg</p>
+            <p className="overview-value">{show(avgTemp, v => `${v.toFixed(1)}°C`)}</p>
+            <p className="overview-change">Across {cowHealthData.length} monitored</p>
           </div>
         </div>
 
@@ -76,8 +166,10 @@ const Health = () => {
           </div>
           <div className="overview-content">
             <h3>Avg Heart Rate</h3>
-            <p className="overview-value">67 bpm</p>
-            <p className="overview-change">Normal range</p>
+            <p className="overview-value">{show(avgHeart, v => `${Math.round(v)} bpm`)}</p>
+            <p className="overview-change">
+              {avgHeart !== null && avgHeart > thresholds.heartRate ? 'Above normal' : 'Normal range'}
+            </p>
           </div>
         </div>
 
@@ -87,8 +179,8 @@ const Health = () => {
           </div>
           <div className="overview-content">
             <h3>Activity Level</h3>
-            <p className="overview-value">82%</p>
-            <p className="overview-change positive">+5% from yesterday</p>
+            <p className="overview-value">{show(avgActivity, v => `${Math.round(v)}%`)}</p>
+            <p className="overview-change">Herd average</p>
           </div>
         </div>
 
@@ -98,8 +190,8 @@ const Health = () => {
           </div>
           <div className="overview-content">
             <h3>Health Score</h3>
-            <p className="overview-value">84/100</p>
-            <p className="overview-change positive">Good condition</p>
+            <p className="overview-value">{show(avgScore, v => `${Math.round(v)}/100`)}</p>
+            <p className="overview-change">{herd?.warnings ? `${herd.warnings} need attention` : 'All within range'}</p>
           </div>
         </div>
       </div>
@@ -149,18 +241,18 @@ const Health = () => {
               </tr>
             </thead>
             <tbody>
-              {cowHealthData.map((cow, index) => (
-                <tr key={index}>
+              {cowHealthData.map((cow) => (
+                <tr key={cow.cowId}>
                   <td><strong>{cow.name}</strong></td>
                   <td>
-                    <span className={cow.temp > 38.5 ? 'warning-value' : 'normal-value'}>
-                      {cow.temp}°C
+                    <span className={cow.temp > thresholds.temperature ? 'warning-value' : 'normal-value'}>
+                      {cow.temp === null ? '—' : `${cow.temp}°C`}
                     </span>
                   </td>
-                  <td>{cow.heart} bpm</td>
+                  <td>{cow.heart === null ? '—' : `${cow.heart} bpm`}</td>
                   <td>
-                    <span className={`status-badge ${cow.status.toLowerCase()}`}>
-                      {cow.status}
+                    <span className={`status-badge ${(cow.status || '').toLowerCase()}`}>
+                      {cow.status || 'Unknown'}
                     </span>
                   </td>
                   <td>
@@ -191,7 +283,7 @@ const Health = () => {
                 <div className="alert-content">
                   <h4>{alert.cow} - {alert.metric}</h4>
                   <p>Current: {alert.value} | Threshold: {alert.threshold}</p>
-                  <span className="alert-time">{alert.time}</span>
+                  <span className="alert-time">{formatTime(alert.time)}</span>
                 </div>
                 <button className="btn-small">Investigate</button>
               </div>

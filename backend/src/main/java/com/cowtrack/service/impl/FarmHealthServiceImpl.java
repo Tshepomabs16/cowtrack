@@ -53,6 +53,12 @@ public class FarmHealthServiceImpl implements FarmHealthService {
         result.put("monitored", latestPerCow.size());
         result.put("warnings", warnings);
         result.put("normal", latestPerCow.size() - warnings);
+        // Published so the client can label a reading without hardcoding the same
+        // numbers a second time and letting the two drift apart.
+        result.put("thresholds", Map.of(
+                "temperature", HealthMetric.TEMPERATURE_WARNING_THRESHOLD,
+                "heartRate", HealthMetric.HEART_RATE_WARNING_THRESHOLD,
+                "activityLevel", HealthMetric.ACTIVITY_WARNING_THRESHOLD));
         return result;
     }
 

@@ -107,6 +107,18 @@ export const healthAPI = {
   getVaccinations: (params) => api.get('/health/vaccinations', { params }),
   scheduleVaccination: (data) => api.post('/health/vaccinations', data),
   getReports: (params) => api.get('/health/reports', { params }),
+  // Veterinary records, as distinct from collar vitals above.
+  getCowRecords: (cowId) => api.get(`/health-records/cow/${cowId}`),
+};
+
+export const productionAPI = {
+  record: (data) => api.post('/production', data),
+  getForCow: (cowId) => api.get(`/production/cow/${cowId}`),
+};
+
+export const financialsAPI = {
+  getAll: () => api.get('/financials'),
+  record: (data) => api.post('/financials', data),
 };
 
 export const locationsAPI = {

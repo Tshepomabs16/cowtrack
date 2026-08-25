@@ -35,6 +35,20 @@ public interface FinancialRecordRepository extends JpaRepository<FinancialRecord
                                     @Param("revenue") FinancialRecord.EntryType revenue,
                                     @Param("cost") FinancialRecord.EntryType cost);
 
+    /** Cost totals per category. Rows of {@code [category, total]}. */
+    @Query("""
+            SELECT COALESCE(f.category, 'Uncategorised'), SUM(f.amount)
+            FROM FinancialRecord f
+            WHERE f.user.userId = :userId AND f.entryType = :type
+              AND f.recordDate BETWEEN :start AND :end
+            GROUP BY f.category
+            ORDER BY SUM(f.amount) DESC
+            """)
+    List<Object[]> aggregateByCategory(@Param("userId") Long userId,
+                                       @Param("type") FinancialRecord.EntryType type,
+                                       @Param("start") LocalDate start,
+                                       @Param("end") LocalDate end);
+
     @Query("""
             SELECT COALESCE(SUM(f.amount), 0) FROM FinancialRecord f
             WHERE f.user.userId = :userId AND f.entryType = :type

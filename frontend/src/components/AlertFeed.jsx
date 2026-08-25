@@ -1,80 +1,94 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { alertsAPI } from '../services/api';
 import './AlertFeed.css';
 
-const AlertFeed = () => {
-  const alerts = [
-    {
-      id: 1,
-      cow: 'Milky',
-      type: 'geofence_breach',
-      message: 'Left geofence area',
-      time: '10:30 AM',
-      resolved: false,
-    },
-    {
-      id: 2,
-      cow: 'Butter',
-      type: 'no_signal',
-      message: 'No GPS signal for 24h',
-      time: '08:15 AM',
-      resolved: false,
-    },
-    {
-      id: 3,
-      cow: 'Milky',
-      type: 'health_alert',
-      message: 'Temperature high',
-      time: 'Yesterday',
-      resolved: true,
-    },
-    {
-      id: 4,
-      cow: 'Daisy',
-      type: 'reminder',
-      message: 'Vaccination due tomorrow',
-      time: 'Yesterday',
-      resolved: false,
-    },
-  ];
+/** Compact list of the most recent alerts, for the dashboard. */
+const AlertFeed = ({ limit = 6 }) => {
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const response = await alertsAPI.getAll();
+        if (cancelled) return;
+        setAlerts(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('Error loading alerts:', err);
+        if (!cancelled) setError('Could not load alerts');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const getTypeIcon = (type) => {
     switch (type) {
-      case 'geofence_breach': return '📍';
-      case 'no_signal': return '📡';
-      case 'health_alert': return '🏥';
-      case 'reminder': return '⏰';
+      case 'GEOFENCE_BREACH': return '📍';
+      case 'NO_SIGNAL': return '📡';
+      case 'DEVICE_REMOVED': return '🔓';
+      case 'NIGHT_MOVEMENT': return '🌙';
       default: return 'ℹ️';
     }
   };
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case 'geofence_breach': return '#ff4444';
-      case 'no_signal': return '#ffaa00';
-      case 'health_alert': return '#0088ff';
-      case 'reminder': return '#00ff88';
+  const getSeverityColor = (severity) => {
+    switch (severity) {
+      case 'critical': return '#ff4444';
+      case 'high': return '#ffaa00';
+      case 'medium': return '#0088ff';
+      case 'low': return '#00ff88';
       default: return '#b0b0d0';
     }
   };
 
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const isToday = date.toDateString() === new Date().toDateString();
+    return isToday
+      ? date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : date.toLocaleDateString();
+  };
+
+  if (loading) {
+    return <div className="alert-feed"><p className="alert-empty">Loading alerts…</p></div>;
+  }
+
+  if (error) {
+    return <div className="alert-feed"><p className="alert-empty">{error}</p></div>;
+  }
+
+  if (!alerts.length) {
+    return <div className="alert-feed"><p className="alert-empty">No alerts. All quiet.</p></div>;
+  }
+
   return (
     <div className="alert-feed">
-      {alerts.map((alert) => (
+      {alerts.slice(0, limit).map((alert) => (
         <div
-          key={alert.id}
-          className={`alert-item ${alert.resolved ? 'resolved' : ''}`}
-          style={{ borderLeftColor: getTypeColor(alert.type) }}
+          key={alert.alertId}
+          className={`alert-item ${alert.isResolved ? 'resolved' : ''}`}
+          style={{ borderLeftColor: getSeverityColor(alert.severity) }}
         >
-          <div className="alert-icon" style={{ color: getTypeColor(alert.type) }}>
-            {getTypeIcon(alert.type)}
+          <div className="alert-icon" style={{ color: getSeverityColor(alert.severity) }}>
+            {getTypeIcon(alert.alertType)}
           </div>
           <div className="alert-content">
             <div className="alert-header">
-              <span className="alert-cow">{alert.cow}</span>
-              <span className="alert-time">{alert.time}</span>
+              <span className="alert-cow">{alert.cowName}</span>
+              <span className="alert-time">{formatTime(alert.createdAt)}</span>
             </div>
-            <div className="alert-message">{alert.message}</div>
-            {alert.resolved && (
+            <div className="alert-message">{alert.message || alert.title}</div>
+            {alert.isResolved && (
               <div className="alert-resolved">✅ Resolved</div>
             )}
           </div>

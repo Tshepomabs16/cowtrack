@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { cowsAPI, healthAPI, productionAPI } from '../services/api';
 import {
   FiArrowLeft,
   FiEdit,
@@ -43,85 +44,78 @@ const CowDetail = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Mock data - replace with API call
+  const [production, setProduction] = useState([]);
+  const [metrics, setMetrics] = useState([]);
+  const [records, setRecords] = useState([]);
+
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setCow({
-        id: id || '1',
-        name: 'Bessie-001',
-        tag: 'CT-001',
-        breed: 'Holstein',
-        age: '3 years 2 months',
-        weight: '450 kg',
-        status: 'healthy',
-        birthDate: '2020-10-15',
-        purchaseDate: '2021-01-20',
-        location: 'Pasture A',
-        temperature: '38.5°C',
-        heartRate: '65 bpm',
-        milkProduction: '28L/day',
-        healthScore: 92,
-        lastCheck: '2 hours ago',
-        color: 'Black & White',
-        owner: 'John Doe',
-        vet: 'Dr. Smith',
-        notes: 'Pregnant, due in 3 months. Requires special diet.',
-      });
-      setLoading(false);
-    }, 500);
+    let cancelled = false;
+    setLoading(true);
+
+    const load = async () => {
+      try {
+        const [cowResponse, productionResponse, metricResponse, recordResponse] =
+          await Promise.all([
+            cowsAPI.getById(id),
+            productionAPI.getForCow(id),
+            healthAPI.getCowHealth(id),
+            healthAPI.getCowRecords(id),
+          ]);
+        if (cancelled) return;
+
+        setCow(cowResponse.data);
+        setProduction(Array.isArray(productionResponse.data) ? productionResponse.data : []);
+        setMetrics(Array.isArray(metricResponse.data) ? metricResponse.data : []);
+        setRecords(Array.isArray(recordResponse.data) ? recordResponse.data : []);
+      } catch (error) {
+        console.error('Error loading cow:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
   }, [id]);
 
-  // Mock chart data
-  const weightData = [
-    { month: 'Jan', weight: 420 },
-    { month: 'Feb', weight: 425 },
-    { month: 'Mar', weight: 430 },
-    { month: 'Apr', weight: 435 },
-    { month: 'May', weight: 440 },
-    { month: 'Jun', weight: 445 },
-    { month: 'Jul', weight: 450 },
-  ];
+  // Charts read oldest-to-newest; the API returns newest first.
+  const productionAsc = production.slice().reverse();
+  const metricsAsc = metrics.slice().reverse();
 
-  const milkData = [
-    { day: 'Mon', milk: 26 },
-    { day: 'Tue', milk: 28 },
-    { day: 'Wed', milk: 27 },
-    { day: 'Thu', milk: 29 },
-    { day: 'Fri', milk: 28 },
-    { day: 'Sat', milk: 27 },
-    { day: 'Sun', milk: 28 },
-  ];
+  const weightData = productionAsc
+    .filter(entry => entry.weightKg !== null && entry.weightKg !== undefined)
+    .map(entry => ({
+      month: new Date(entry.recordDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      weight: Number(entry.weightKg),
+    }));
 
-  const healthData = [
-    { date: 'Week 1', temp: 38.3, heart: 64 },
-    { date: 'Week 2', temp: 38.4, heart: 65 },
-    { date: 'Week 3', temp: 38.2, heart: 66 },
-    { date: 'Week 4', temp: 38.5, heart: 65 },
-    { date: 'Week 5', temp: 38.3, heart: 64 },
-  ];
+  const milkData = productionAsc
+    .filter(entry => entry.milkLitres !== null && entry.milkLitres !== undefined)
+    .map(entry => ({
+      day: new Date(entry.recordDate).toLocaleDateString(undefined, { weekday: 'short' }),
+      milk: Number(entry.milkLitres),
+    }));
 
-  const activityData = [
-    { time: '6 AM', activity: 20 },
-    { time: '9 AM', activity: 85 },
-    { time: '12 PM', activity: 60 },
-    { time: '3 PM', activity: 75 },
-    { time: '6 PM', activity: 40 },
-    { time: '9 PM', activity: 15 },
-  ];
+  const healthData = metricsAsc.map(metric => ({
+    date: new Date(metric.recordedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    temp: Number(metric.temperature),
+    heart: Number(metric.heartRate),
+  }));
 
-  const medicalHistory = [
-    { date: '2024-01-15', procedure: 'Routine Checkup', vet: 'Dr. Smith', notes: 'All normal' },
-    { date: '2023-11-20', procedure: 'Vaccination', vet: 'Dr. Johnson', notes: 'Annual vaccines administered' },
-    { date: '2023-08-10', procedure: 'Hoof Trimming', vet: 'Dr. Smith', notes: 'Routine maintenance' },
-    { date: '2023-05-05', procedure: 'Deworming', vet: 'Dr. Williams', notes: 'Preventive treatment' },
-  ];
+  const activityData = metricsAsc.map(metric => ({
+    time: new Date(metric.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    activity: Number(metric.activityLevel),
+  }));
 
-  const feedingSchedule = [
-    { time: '06:00', food: 'Hay', quantity: '5 kg', supplements: 'Mineral mix' },
-    { time: '12:00', food: 'Silage', quantity: '8 kg', supplements: 'Salt lick' },
-    { time: '18:00', food: 'Grains', quantity: '3 kg', supplements: 'Calcium' },
-  ];
+  const medicalHistory = records.map(record => ({
+    date: record.recordDate,
+    procedure: record.diagnosis,
+    vet: record.vetName,
+    notes: record.treatment,
+  }));
+
+  const latestMetric = metrics[0];
+  const latestProduction = production[0];
 
   if (loading) {
     return (
@@ -155,9 +149,9 @@ const CowDetail = () => {
         <div className="header-content">
           <div className="cow-title">
             <h1>{cow.name}</h1>
-            <span className="cow-tag">{cow.tag}</span>
-            <span className={`status-badge status-${cow.status}`}>
-              {cow.status.charAt(0).toUpperCase() + cow.status.slice(1)}
+            <span className="cow-tag">{cow.tagId}</span>
+            <span className={`status-badge status-${cow.status || 'unknown'}`}>
+              {(cow.status || 'unknown').charAt(0).toUpperCase() + (cow.status || 'unknown').slice(1)}
             </span>
           </div>
 
@@ -225,30 +219,30 @@ const CowDetail = () => {
                 <div className="info-grid">
                   <div className="info-item">
                     <span className="info-label">Breed</span>
-                    <span className="info-value">{cow.breed}</span>
+                    <span className="info-value">{cow.breed || '—'}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Age</span>
-                    <span className="info-value">{cow.age}</span>
+                    <span className="info-value">{cow.age === null || cow.age === undefined ? '—' : `${cow.age} years`}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Weight</span>
-                    <span className="info-value">{cow.weight}</span>
+                    <span className="info-value">{cow.weight ? `${cow.weight} kg` : '—'}</span>
                   </div>
                   <div className="info-item">
-                    <span className="info-label">Color</span>
-                    <span className="info-value">{cow.color}</span>
+                    <span className="info-label">Caretaker</span>
+                    <span className="info-value">{cow.caretakerName || 'Unassigned'}</span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Birth Date</span>
                     <span className="info-value">
-                      <FiCalendar /> {cow.birthDate}
+                      <FiCalendar /> {cow.dateOfBirth || '—'}
                     </span>
                   </div>
                   <div className="info-item">
                     <span className="info-label">Location</span>
                     <span className="info-value">
-                      <FiMapPin /> {cow.location}
+                      <FiMapPin /> {cow.location || 'No GPS fix'}
                     </span>
                   </div>
                 </div>
@@ -264,7 +258,7 @@ const CowDetail = () => {
                     </div>
                     <div className="metric-content">
                       <h4>Temperature</h4>
-                      <p className="metric-value">{cow.temperature}</p>
+                      <p className="metric-value">{cow.temperature ? `${cow.temperature}°C` : '—'}</p>
                       <p className="metric-status normal">Normal</p>
                     </div>
                   </div>
@@ -274,7 +268,7 @@ const CowDetail = () => {
                     </div>
                     <div className="metric-content">
                       <h4>Heart Rate</h4>
-                      <p className="metric-value">{cow.heartRate}</p>
+                      <p className="metric-value">{cow.heartRate ? `${cow.heartRate} bpm` : '—'}</p>
                       <p className="metric-status normal">Normal</p>
                     </div>
                   </div>
@@ -284,7 +278,7 @@ const CowDetail = () => {
                     </div>
                     <div className="metric-content">
                       <h4>Milk Production</h4>
-                      <p className="metric-value">{cow.milkProduction}</p>
+                      <p className="metric-value">{latestProduction?.milkLitres ? `${latestProduction.milkLitres} L/day` : '—'}</p>
                       <p className="metric-status good">Good</p>
                     </div>
                   </div>
@@ -294,11 +288,11 @@ const CowDetail = () => {
                     </div>
                     <div className="metric-content">
                       <h4>Health Score</h4>
-                      <p className="metric-value">{cow.healthScore}/100</p>
+                      <p className="metric-value">{latestMetric ? (latestMetric.status === 'Warning' ? 'Warning' : 'Normal') : '—'}</p>
                       <div className="score-bar">
                         <div
                           className="score-fill"
-                          style={{ width: `${cow.healthScore}%` }}
+                          style={{ width: latestMetric ? (latestMetric.status === 'Warning' ? '45%' : '90%') : '0%' }}
                         ></div>
                       </div>
                     </div>
@@ -312,15 +306,15 @@ const CowDetail = () => {
                 <div className="stats-list">
                   <div className="stat-item">
                     <span className="stat-label">Last Check</span>
-                    <span className="stat-value">{cow.lastCheck}</span>
+                    <span className="stat-value">{cow.lastCheck ? new Date(cow.lastCheck).toLocaleString() : 'Never'}</span>
                   </div>
                   <div className="stat-item">
                     <span className="stat-label">Owner</span>
-                    <span className="stat-value">{cow.owner}</span>
+                    <span className="stat-value">{cow.caretakerName || 'Unassigned'}</span>
                   </div>
                   <div className="stat-item">
                     <span className="stat-label">Assigned Vet</span>
-                    <span className="stat-value">{cow.vet}</span>
+                    <span className="stat-value">{records[0]?.vetName || '—'}</span>
                   </div>
                   <div className="stat-item">
                     <span className="stat-label">Daily Feed Cost</span>
@@ -334,7 +328,7 @@ const CowDetail = () => {
 
                 <div className="notes-section">
                   <h4>Notes</h4>
-                  <p className="notes-text">{cow.notes}</p>
+                  <p className="notes-text">{records[0]?.treatment || 'No notes recorded'}</p>
                 </div>
               </div>
             </div>
@@ -436,51 +430,15 @@ const CowDetail = () => {
           <div className="feeding-content">
             <div className="feeding-schedule">
               <h3>Daily Feeding Schedule</h3>
-              <table className="feeding-table">
-                <thead>
-                  <tr>
-                    <th>Time</th>
-                    <th>Food Type</th>
-                    <th>Quantity</th>
-                    <th>Supplements</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {feedingSchedule.map((meal, index) => (
-                    <tr key={index}>
-                      <td>
-                        <FiCalendar /> {meal.time}
-                      </td>
-                      <td>{meal.food}</td>
-                      <td><strong>{meal.quantity}</strong></td>
-                      <td>{meal.supplements}</td>
-                      <td>
-                        <button className="btn-small">Edit</button>
-                        <button className="btn-small">Skip</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="feeding-stats">
-              <div className="stat-card">
-                <FaUtensils className="stat-icon" />
-                <h4>Daily Intake</h4>
-                <p className="stat-value">16 kg</p>
-              </div>
-              <div className="stat-card">
-                <FaWater className="stat-icon" />
-                <h4>Water Consumption</h4>
-                <p className="stat-value">45 L/day</p>
-              </div>
-              <div className="stat-card">
-                <FaWeight className="stat-icon" />
-                <h4>Feed Efficiency</h4>
-                <p className="stat-value">85%</p>
-              </div>
+              {/*
+                Feeding is not modelled in the backend: there is no feed entity,
+                schedule or intake record. Showing an empty state rather than
+                invented figures, until that domain exists.
+              */}
+              <p className="empty-row">
+                Feeding is not tracked yet. Once feed schedules and intake are
+                modelled, this tab will show them.
+              </p>
             </div>
           </div>
         )}

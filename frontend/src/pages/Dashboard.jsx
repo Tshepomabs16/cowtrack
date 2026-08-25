@@ -1,10 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import CattleMap from '../components/CattleMap/CattleMap';
 import StatsCard from '../components/StatsCard';
 import AlertFeed from '../components/AlertFeed';
+import { analyticsAPI, healthAPI } from '../services/api';
 import './Dashboard.css';
 
 const Dashboard = () => {
+  const [stats, setStats] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const [dashboard, metrics] = await Promise.all([
+          analyticsAPI.getDashboardStats(),
+          healthAPI.getMetrics({ range: '7d' }),
+        ]);
+        if (cancelled) return;
+        setStats(dashboard.data);
+        setHealth(metrics.data);
+      } catch (error) {
+        console.error('Error loading dashboard:', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Mean of the most recent reading per animal.
+  const averageTemperature = () => {
+    const readings = (health?.cows || [])
+      .map(cow => Number(cow.temperature))
+      .filter(Number.isFinite);
+
+    if (!readings.length) return null;
+    const mean = readings.reduce((sum, value) => sum + value, 0) / readings.length;
+    return `${mean.toFixed(1)}°C`;
+  };
+
+  // A dash is more honest than a zero when nothing has been recorded yet.
+  const show = (value, suffix = '') => {
+    if (loading) return '…';
+    if (value === null || value === undefined) return '—';
+    return `${value}${suffix}`;
+  };
+
   return (
     <div className="dashboard">
       <div className="dashboard-header">
@@ -20,10 +66,15 @@ const Dashboard = () => {
 
         <div className="stats-section">
           <div className="stats-row">
-            <StatsCard title="Total Cattle" value="247" change="+5%" />
-            <StatsCard title="Active Now" value="218" change="+2%" />
-            <StatsCard title="Health Alerts" value="3" change="-1" alert />
-            <StatsCard title="Avg Temperature" value="38.4°C" change="0.2°" />
+            <StatsCard title="Total Cattle" value={show(stats?.totalCows)} icon="🐄" />
+            <StatsCard title="Monitored" value={show(health?.monitored)} icon="📡" />
+            <StatsCard
+              title="Health Alerts"
+              value={show(stats?.activeAlerts)}
+              icon="⚠️"
+              color={stats?.activeAlerts ? '#ef4444' : undefined}
+            />
+            <StatsCard title="Avg Temperature" value={show(averageTemperature())} icon="🌡️" />
           </div>
 
           <div className="alerts-section">

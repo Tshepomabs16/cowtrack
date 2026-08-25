@@ -1,49 +1,124 @@
-import React, { useState } from 'react';
-import { FiCalendar, FiClock, FiCheckCircle, FiPlus, FiBell } from 'react-icons/fi';
-import { format, addDays, isToday, isTomorrow } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FiCalendar, FiCheckCircle, FiPlus, FiBell } from 'react-icons/fi';
+import { format, isToday, isTomorrow, isPast } from 'date-fns';
+import { remindersAPI, cowsAPI } from '../services/api';
 import './Reminders.css';
 
+const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'ONCE'];
+
+/**
+ * Reminders are scheduled per animal, with a type and a recurrence. There is no
+ * stored priority, so urgency is inferred from how the due date sits relative to
+ * today.
+ */
+const priorityOf = (reminder) => {
+  if (reminder.isOverdue) return 'high';
+  const days = reminder.daysUntilDue;
+  if (days === null || days === undefined) return 'low';
+  if (days <= 1) return 'high';
+  if (days <= 7) return 'medium';
+  return 'low';
+};
+
 const Reminders = () => {
-  const [reminders, setReminders] = useState([
-    { id: 1, title: 'Morning Feeding', description: 'Feed all cattle in Pasture A', time: '08:00', recurring: 'daily', completed: true, priority: 'high', assigned: 'John Doe' },
-    { id: 2, title: 'Health Check - Bessie', description: 'Routine checkup for pregnant cow', time: '10:00', date: format(addDays(new Date(), 0), 'yyyy-MM-dd'), completed: false, priority: 'high', assigned: 'Dr. Smith' },
-    { id: 3, title: 'Vaccination Schedule', description: 'Administer vaccines to new calves', time: '14:00', date: format(addDays(new Date(), 2), 'yyyy-MM-dd'), completed: false, priority: 'medium', assigned: 'Vet Team' },
-    { id: 4, title: 'Barn Cleaning', description: 'Clean and disinfect Barn 1', time: '16:00', recurring: 'weekly', completed: false, priority: 'medium', assigned: 'Maintenance' },
-    { id: 5, title: 'Weighing Session', description: 'Monthly weight check for all cattle', time: '09:00', date: format(addDays(new Date(), 7), 'yyyy-MM-dd'), completed: false, priority: 'low', assigned: 'Farm Hands' },
-  ]);
-
-  const [newReminder, setNewReminder] = useState({ title: '', description: '', time: '09:00', priority: 'medium' });
+  const [reminders, setReminders] = useState([]);
+  const [cows, setCows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [newReminder, setNewReminder] = useState({
+    cowId: '',
+    reminderType: '',
+    notes: '',
+    frequency: 'WEEKLY',
+    startDate: format(new Date(), 'yyyy-MM-dd'),
+  });
 
-  const handleToggleComplete = (id) => {
-    setReminders(reminders.map(reminder =>
-      reminder.id === id ? { ...reminder, completed: !reminder.completed } : reminder
-    ));
+  const load = useCallback(async () => {
+    try {
+      const [reminderResponse, cowResponse] = await Promise.all([
+        remindersAPI.getAll(),
+        cowsAPI.getAll(),
+      ]);
+      setReminders(Array.isArray(reminderResponse.data) ? reminderResponse.data : []);
+      setCows(Array.isArray(cowResponse.data) ? cowResponse.data : []);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading reminders:', err);
+      setError('Could not load reminders');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleToggleComplete = async (reminder) => {
+    if (reminder.isCompleted) return;
+    try {
+      await remindersAPI.markComplete(reminder.reminderId);
+      // Re-read rather than patching locally: completing a recurring reminder
+      // rolls its due date forward on the server.
+      await load();
+    } catch (err) {
+      console.error('Error completing reminder:', err);
+      setError('Could not update the reminder');
+    }
   };
 
-  const handleAddReminder = () => {
-    if (!newReminder.title.trim()) return;
+  const handleAddReminder = async () => {
+    if (!newReminder.cowId || !newReminder.reminderType.trim()) return;
 
-    const newRem = {
-      id: Date.now(),
-      ...newReminder,
-      date: format(new Date(), 'yyyy-MM-dd'),
-      completed: false,
-      assigned: 'Unassigned'
-    };
-
-    setReminders([...reminders, newRem]);
-    setNewReminder({ title: '', description: '', time: '09:00', priority: 'medium' });
-    setShowForm(false);
+    setSaving(true);
+    try {
+      await remindersAPI.create({
+        cowId: Number(newReminder.cowId),
+        reminderType: newReminder.reminderType.trim(),
+        frequency: newReminder.frequency,
+        startDate: newReminder.startDate,
+        notes: newReminder.notes.trim() || undefined,
+      });
+      setNewReminder({
+        cowId: '',
+        reminderType: '',
+        notes: '',
+        frequency: 'WEEKLY',
+        startDate: format(new Date(), 'yyyy-MM-dd'),
+      });
+      setShowForm(false);
+      await load();
+    } catch (err) {
+      console.error('Error creating reminder:', err);
+      setError(err.response?.data?.message || 'Could not create the reminder');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getDateLabel = (date) => {
-    if (!date) return 'Today';
-    const reminderDate = new Date(date);
-    if (isToday(reminderDate)) return 'Today';
-    if (isTomorrow(reminderDate)) return 'Tomorrow';
-    return format(reminderDate, 'MMM d');
+    if (!date) return '—';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '—';
+    if (isToday(parsed)) return 'Today';
+    if (isTomorrow(parsed)) return 'Tomorrow';
+    return format(parsed, 'MMM d');
   };
+
+  const isDueToday = (reminder) => {
+    if (!reminder.startDate) return false;
+    const parsed = new Date(reminder.startDate);
+    return isToday(parsed) || (isPast(parsed) && !reminder.isCompleted);
+  };
+
+  const pending = reminders.filter(r => !r.isCompleted);
+  const dueToday = pending.filter(isDueToday);
+  const upcoming = pending.filter(r => !isDueToday(r));
+  const completed = reminders.filter(r => r.isCompleted);
+
+  if (loading) {
+    return <div className="reminders-page"><p>Loading reminders…</p></div>;
+  }
 
   return (
     <div className="reminders-page">
@@ -52,50 +127,66 @@ const Reminders = () => {
           <h1><FiCalendar /> Reminders & Tasks</h1>
           <p>Manage daily operations and scheduled tasks</p>
         </div>
-        <button
-          className="btn-primary"
-          onClick={() => setShowForm(!showForm)}
-        >
+        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
           <FiPlus /> Add New Reminder
         </button>
       </div>
+
+      {error && <div className="form-error">{error}</div>}
 
       {showForm && (
         <div className="reminder-form">
           <h3>Add New Reminder</h3>
           <div className="form-grid">
+            <select
+              value={newReminder.cowId}
+              onChange={(e) => setNewReminder({ ...newReminder, cowId: e.target.value })}
+            >
+              <option value="">Select a cow…</option>
+              {cows.map(cow => (
+                <option key={cow.cowId} value={cow.cowId}>
+                  {cow.name} ({cow.tagId})
+                </option>
+              ))}
+            </select>
             <input
               type="text"
-              placeholder="Task title"
-              value={newReminder.title}
-              onChange={(e) => setNewReminder({...newReminder, title: e.target.value})}
+              placeholder="Reminder type, e.g. Vaccination"
+              value={newReminder.reminderType}
+              onChange={(e) => setNewReminder({ ...newReminder, reminderType: e.target.value })}
             />
             <input
               type="text"
-              placeholder="Description"
-              value={newReminder.description}
-              onChange={(e) => setNewReminder({...newReminder, description: e.target.value})}
+              placeholder="Notes"
+              value={newReminder.notes}
+              onChange={(e) => setNewReminder({ ...newReminder, notes: e.target.value })}
             />
             <input
-              type="time"
-              value={newReminder.time}
-              onChange={(e) => setNewReminder({...newReminder, time: e.target.value})}
+              type="date"
+              value={newReminder.startDate}
+              onChange={(e) => setNewReminder({ ...newReminder, startDate: e.target.value })}
             />
             <select
-              value={newReminder.priority}
-              onChange={(e) => setNewReminder({...newReminder, priority: e.target.value})}
+              value={newReminder.frequency}
+              onChange={(e) => setNewReminder({ ...newReminder, frequency: e.target.value })}
             >
-              <option value="low">Low Priority</option>
-              <option value="medium">Medium Priority</option>
-              <option value="high">High Priority</option>
+              {FREQUENCIES.map(frequency => (
+                <option key={frequency} value={frequency}>
+                  {frequency.charAt(0) + frequency.slice(1).toLowerCase()}
+                </option>
+              ))}
             </select>
           </div>
           <div className="form-actions">
             <button className="btn-secondary" onClick={() => setShowForm(false)}>
               Cancel
             </button>
-            <button className="btn-success" onClick={handleAddReminder}>
-              Add Reminder
+            <button
+              className="btn-success"
+              onClick={handleAddReminder}
+              disabled={saving || !newReminder.cowId || !newReminder.reminderType.trim()}
+            >
+              {saving ? 'Saving…' : 'Add Reminder'}
             </button>
           </div>
         </div>
@@ -103,94 +194,81 @@ const Reminders = () => {
 
       <div className="reminders-overview">
         <div className="overview-card">
-          <h3>Today's Tasks</h3>
-          <p className="overview-number">
-            {reminders.filter(r => r.date === format(new Date(), 'yyyy-MM-dd') || r.recurring).length}
-          </p>
+          <h3>Due Today</h3>
+          <p className="overview-number">{dueToday.length}</p>
         </div>
         <div className="overview-card">
           <h3>Pending</h3>
-          <p className="overview-number">
-            {reminders.filter(r => !r.completed).length}
-          </p>
+          <p className="overview-number">{pending.length}</p>
         </div>
         <div className="overview-card">
-          <h3>High Priority</h3>
-          <p className="overview-number">
-            {reminders.filter(r => r.priority === 'high' && !r.completed).length}
-          </p>
+          <h3>Overdue</h3>
+          <p className="overview-number">{pending.filter(r => r.isOverdue).length}</p>
         </div>
         <div className="overview-card">
-          <h3>Completed Today</h3>
-          <p className="overview-number">
-            {reminders.filter(r => r.completed && (r.date === format(new Date(), 'yyyy-MM-dd') || r.recurring)).length}
-          </p>
+          <h3>Completed</h3>
+          <p className="overview-number">{completed.length}</p>
         </div>
       </div>
 
       <div className="reminders-container">
         <div className="todays-reminders">
-          <h3><FiBell /> Today's Schedule</h3>
+          <h3><FiBell /> Due Now</h3>
           <div className="reminders-list">
-            {reminders
-              .filter(r => r.date === format(new Date(), 'yyyy-MM-dd') || r.recurring === 'daily')
-              .sort((a, b) => a.time.localeCompare(b.time))
-              .map(reminder => (
-                <div key={reminder.id} className={`reminder-item ${reminder.priority} ${reminder.completed ? 'completed' : ''}`}>
-                  <div className="reminder-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={reminder.completed}
-                      onChange={() => handleToggleComplete(reminder.id)}
-                    />
-                  </div>
-                  <div className="reminder-content">
-                    <h4>{reminder.title}</h4>
-                    <p>{reminder.description}</p>
-                    <div className="reminder-meta">
-                      <span className="time">
-                        <FiClock /> {reminder.time}
-                      </span>
-                      <span className="assigned">Assigned to: {reminder.assigned}</span>
-                      {reminder.recurring && (
-                        <span className="recurring">{reminder.recurring}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="reminder-actions">
-                    <button className="btn-small">Edit</button>
-                    <button className="btn-small">Snooze</button>
+            {dueToday.length === 0 && <p className="empty-row">Nothing due today.</p>}
+            {dueToday.map(reminder => (
+              <div
+                key={reminder.reminderId}
+                className={`reminder-item ${priorityOf(reminder)}`}
+              >
+                <div className="reminder-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(reminder.isCompleted)}
+                    onChange={() => handleToggleComplete(reminder)}
+                  />
+                </div>
+                <div className="reminder-content">
+                  <h4>{reminder.reminderType}</h4>
+                  <p>{reminder.notes}</p>
+                  <div className="reminder-meta">
+                    <span className="assigned">{reminder.cowName}</span>
+                    <span className="recurring">
+                      {(reminder.frequency || '').toLowerCase()}
+                    </span>
+                    {reminder.isOverdue && <span className="time">Overdue</span>}
                   </div>
                 </div>
-              ))}
+              </div>
+            ))}
           </div>
         </div>
 
         <div className="upcoming-reminders">
-          <h3><FiCalendar /> Upcoming Tasks</h3>
+          <h3><FiCalendar /> Upcoming</h3>
           <div className="reminders-list">
-            {reminders
-              .filter(r => r.date && r.date !== format(new Date(), 'yyyy-MM-dd') && !r.recurring)
-              .sort((a, b) => a.date.localeCompare(b.date))
+            {upcoming.length === 0 && <p className="empty-row">Nothing scheduled.</p>}
+            {upcoming
+              .slice()
+              .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)))
               .map(reminder => (
-                <div key={reminder.id} className={`reminder-item ${reminder.priority}`}>
+                <div
+                  key={reminder.reminderId}
+                  className={`reminder-item ${priorityOf(reminder)}`}
+                >
                   <div className="reminder-date">
-                    <span className="date-label">
-                      {getDateLabel(reminder.date)}
-                    </span>
+                    <span className="date-label">{getDateLabel(reminder.startDate)}</span>
                   </div>
                   <div className="reminder-content">
-                    <h4>{reminder.title}</h4>
-                    <p>{reminder.description}</p>
+                    <h4>{reminder.reminderType}</h4>
+                    <p>{reminder.notes}</p>
                     <div className="reminder-meta">
-                      <span className="time">
-                        <FiClock /> {reminder.time}
-                      </span>
-                      <span className="assigned">{reminder.assigned}</span>
+                      <span className="assigned">{reminder.cowName}</span>
+                      {reminder.daysUntilDue !== null &&
+                        reminder.daysUntilDue !== undefined && (
+                          <span className="time">in {reminder.daysUntilDue} days</span>
+                        )}
                     </div>
-                  </div>
-                  <div className="reminder-actions">
-                    <button className="btn-small">Reschedule</button>
                   </div>
                 </div>
               ))}
@@ -201,22 +279,20 @@ const Reminders = () => {
       <div className="completed-tasks">
         <h3>Recently Completed</h3>
         <div className="tasks-grid">
-          {reminders
-            .filter(r => r.completed)
-            .slice(0, 4)
-            .map(reminder => (
-              <div key={reminder.id} className="task-card completed">
-                <div className="task-header">
-                  <FiCheckCircle className="completed-icon" />
-                  <h4>{reminder.title}</h4>
-                </div>
-                <p>{reminder.description}</p>
-                <div className="task-footer">
-                  <span>Completed by: {reminder.assigned}</span>
-                  <span>{reminder.time}</span>
-                </div>
+          {completed.length === 0 && <p className="empty-row">Nothing completed yet.</p>}
+          {completed.slice(0, 4).map(reminder => (
+            <div key={reminder.reminderId} className="task-card completed">
+              <div className="task-header">
+                <FiCheckCircle className="completed-icon" />
+                <h4>{reminder.reminderType}</h4>
               </div>
-            ))}
+              <p>{reminder.notes}</p>
+              <div className="task-footer">
+                <span>{reminder.cowName}</span>
+                <span>{getDateLabel(reminder.startDate)}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

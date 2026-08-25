@@ -52,8 +52,8 @@
         </dependency>
 
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -109,7 +109,7 @@
 
         <!--
             In-memory database backing both the test suite and the `dev` profile,
-            so the application can be run and exercised without a MySQL install.
+            so the application can be run and exercised without a PostgreSQL install.
         -->
         <dependency>
             <groupId>com.h2database</groupId>
