@@ -223,10 +223,10 @@ const Register = () => {
                     value={formData.role}
                     onChange={handleChange}
                   >
+                    {/* Values must match the User.Role enum on the backend. */}
                     <option value="farmer">Farmer/Owner</option>
-                    <option value="manager">Farm Manager</option>
-                    <option value="veterinarian">Veterinarian</option>
-                    <option value="worker">Farm Worker</option>
+                    <option value="caretaker">Caretaker</option>
+                    <option value="admin">Administrator</option>
                   </select>
                 </div>
               </div>

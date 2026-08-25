@@ -75,31 +75,58 @@ Serves on <http://localhost:3000> and proxies API calls to `REACT_APP_API_URL`.
 > The per-project README in `frontend/` says `npm run dev` — that script does not
 > exist. This is a Create React App project, so the dev server is `npm start`.
 
+## Authentication
+
+The API uses stateless JWT bearer tokens.
+
+1. `POST /api/auth/register` or `POST /api/auth/login` returns `{ token, user }`.
+2. The client stores the token and sends `Authorization: Bearer <token>` on every
+   subsequent request (handled by the axios interceptor in `services/api.js`).
+3. Everything except `/api/auth/**`, `/`, `/api/health` and `/api/ping` requires a
+   valid token, and returns **401** without one.
+
 ## Configuration
 
-`frontend/.env` holds the client-side settings:
+### Backend
+
+All settings have working defaults for local development; override via environment
+variables for anything deployed.
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `REACT_APP_API_URL` | Backend REST base URL | `http://localhost:8081/api` |
-| `REACT_APP_WS_URL` | WebSocket endpoint | `ws://localhost:3000` |
-| `REACT_APP_MAPBOX_TOKEN` | Mapbox access token | *currently unused* |
-| `REACT_APP_GOOGLE_MAPS_KEY` | Google Maps API key | *currently unused* |
+| `DB_HOST` / `DB_PORT` / `DB_NAME` | MySQL connection | `localhost` / `3307` / `cowtrack` |
+| `DB_USERNAME` / `DB_PASSWORD` | MySQL credentials | `root` / *(empty)* |
+| `JWT_SECRET` | Token signing key, **min 32 chars** | insecure dev default |
+| `JWT_EXPIRATION_MS` | Token lifetime | `86400000` (24h) |
+| `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API | `http://localhost:3000` |
 
-Note that any `REACT_APP_*` value is compiled into the production bundle and is
-therefore **public** — never put a secret that needs to stay private in this file.
+`JWT_SECRET` **must** be overridden outside local development. Generate one with
+`openssl rand -base64 48`.
+
+### Frontend
+
+See `frontend/.env.example`. Every `REACT_APP_*` value is compiled into the production
+bundle and is therefore **public** — never put a private secret in that file.
+
+## Testing
+
+```bash
+cd backend && ./mvnw test
+```
+
+Tests run against an in-memory H2 database via the `test` profile, so no MySQL
+instance is needed. `AuthIntegrationTest` covers the full login flow end to end.
 
 ## Known issues
 
-- `backend/src/main/resources/application.yml` nests a second `spring:` block inside
-  the outer `spring:` key. Everything under it (the HikariCP pool sizing and
-  `open-in-view: false`) resolves to `spring.spring.*` and is silently ignored by
-  Spring Boot. The nested keys need to be lifted one level up, and `Hikari` should be
-  lowercase `hikari`.
-- `REACT_APP_WS_URL` points at port 3000, the frontend's own dev server. The backend
-  has no WebSocket starter on the classpath, so no WebSocket endpoint exists yet.
-- Build output (`backend/target/`, 85 compiled `.class` files) and IDE settings
-  (`.idea/` in both halves) are tracked in git and should be removed and gitignored.
+- `REACT_APP_WS_URL` has no server behind it — the backend has no WebSocket starter
+  on the classpath, so `services/websocket.js` will never connect. The Live Map falls
+  back to the initial fetch.
+- **The frontend and backend APIs still largely disagree.** `services/api.js` declares
+  endpoints (`/settings/*`, `/upload/*`, `/analytics/*`, `/locations/live`) that the
+  backend does not implement. Auth is reconciled; the rest is not.
+- Six pages still render hardcoded mock data rather than live API results:
+  Dashboard, Analytics, CowDetail, Health, Reminders, Settings.
 
 ## Author
 

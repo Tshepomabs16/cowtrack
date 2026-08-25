@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import React, { useState, useEffect } from 'react';
 import { useFetch } from '../hooks/useFetch';
 import { alertsAPI } from '../services/api';
 import { wsService, WS_EVENTS } from '../services/websocket';
@@ -21,6 +20,7 @@ import './Alerts.css';
 const Alerts = () => {
   const [filter, setFilter] = useState('all');
   const [selectedAlerts, setSelectedAlerts] = useState([]);
+  const [showResolved, setShowResolved] = useState(false);
 
   // Use the custom hook for fetching alerts
   const {
@@ -152,14 +152,7 @@ const Alerts = () => {
           <p>Monitor and respond to system alerts</p>
         </div>
         <div className="header-actions">
-          <button
-            className="btn-primary"
-            onClick={() => {
-              // Refresh alerts
-              setLoading(true);
-              setTimeout(() => setLoading(false), 500);
-            }}
-          >
+          <button className="btn-primary" onClick={refresh}>
             <FiRefreshCw /> Refresh
           </button>
           <button className="btn-secondary">

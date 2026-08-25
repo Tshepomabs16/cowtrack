@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import React, { useState, useEffect } from 'react';
 import { cowsAPI } from '../services/api';
 import { FiFilter, FiSearch, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
@@ -67,6 +66,15 @@ const Cows = () => {
     pregnant: '#8b5cf6',
     alert: '#ef4444'
   };
+
+  // The request already applies the status filter server-side. Narrowing by search
+  // term locally keeps typing responsive without a round trip per keystroke.
+  const filteredCows = cows.filter(cow => {
+    if (!searchTerm) return true;
+    const query = searchTerm.toLowerCase();
+    return cow.name?.toLowerCase().includes(query)
+        || cow.tag?.toLowerCase().includes(query);
+  });
 
   return (
     <div className="cows-page">

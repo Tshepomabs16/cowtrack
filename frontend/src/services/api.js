@@ -30,8 +30,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login if unauthorized
+    // A 401 from /auth/* is a failed sign-in attempt, not an expired session.
+    // Redirecting here would reload the page and discard the error message the
+    // login form is about to display, so let those through untouched.
+    const isAuthRequest = error.config?.url?.startsWith('/auth/');
+
+    if (error.response?.status === 401 && !isAuthRequest) {
+      // Session expired or token rejected - clear it and return to login.
       localStorage.removeItem('cowtrack_token');
       localStorage.removeItem('cowtrack_user');
       window.location.href = '/login';

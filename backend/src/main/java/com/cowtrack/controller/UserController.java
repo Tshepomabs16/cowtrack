@@ -60,12 +60,4 @@ public class UserController extends BaseController {
         userService.deleteUser(userId);
         return success("User deleted successfully", null);
     }
-
-    @PostMapping("/{cowId}/assign-caretaker/{caretakerId}")
-    public ResponseEntity<?> assignCaretakerToCow(
-            @PathVariable Long cowId,
-            @PathVariable Long caretakerId) {
-        // This should be in CowController, but for simplicity
-        return success("Caretaker assignment endpoint - implement in CowController", null);
-    }
 }

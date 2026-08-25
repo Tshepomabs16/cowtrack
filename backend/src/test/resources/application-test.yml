@@ -1,0 +1,27 @@
+# Test profile: in-memory H2 so the suite runs without a MySQL instance.
+spring:
+  datasource:
+    url: jdbc:h2:mem:cowtrack;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    database-platform: org.hibernate.dialect.H2Dialect
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+cowtrack:
+  jwt:
+    secret: test-secret-key-that-is-definitely-long-enough-32
+    expiration-ms: 3600000
+  cors:
+    allowed-origins: http://localhost:3000
+
+logging:
+  level:
+    com.cowtrack: INFO
+    org.hibernate.SQL: WARN

@@ -3,9 +3,9 @@ package com.cowtrack.controller;
 import com.cowtrack.dto.common.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
-@CrossOrigin(origins = "*", maxAge = 3600)  // Allow all origins for now
+// CORS is configured centrally in SecurityConfig so that preflight requests are
+// handled by the filter chain rather than per-controller annotations.
 public class BaseController {
 
     protected <T> ResponseEntity<ApiResponse<T>> success(T data) {

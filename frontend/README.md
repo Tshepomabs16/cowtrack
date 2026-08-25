@@ -24,13 +24,13 @@ This project was developed as the frontend side of the CowTrack application to p
    git clone https://github.com/Tshepomabs16/cowtrack-frontend.git
 2. Open the project folder:
    ```bash
-   cd Edulink-Central
+   cd cowtrack/frontend
 3. Install dependencies:
    ```bash
    npm install
-5. Start the development server:
+4. Start the development server:
    ```bash
-   npm run dev
+   npm start
 
 ## Future Improvements:
 
