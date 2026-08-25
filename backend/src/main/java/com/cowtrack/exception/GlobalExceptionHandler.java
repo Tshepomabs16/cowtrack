@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,6 +34,28 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 HttpStatus.NOT_FOUND.value(),
                 "Resource Not Found",
+                getRequestPath(request)
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * An unmapped URL. Without this the catch-all {@code Exception} handler below
+     * would report a 500 for what is really a 404 - visible once the application
+     * began serving the bundled web client, since unmatched paths reach the static
+     * resource resolver rather than a controller.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(
+            NoResourceFoundException ex, WebRequest request) {
+
+        log.warn("No handler for path: {}", getRequestPath(request));
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                "No endpoint found for the requested path",
+                HttpStatus.NOT_FOUND.value(),
+                "Not Found",
                 getRequestPath(request)
         );
 

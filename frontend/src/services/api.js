@@ -1,8 +1,9 @@
 // src/services/api.js
 import axios from 'axios';
 
-// API base URL - update this with your backend URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081/api';
+// Same-origin by default: in development the CRA proxy (see package.json) forwards
+// /api to the backend, and in production the backend serves this bundle itself.
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance with default config
 const api = axios.create({

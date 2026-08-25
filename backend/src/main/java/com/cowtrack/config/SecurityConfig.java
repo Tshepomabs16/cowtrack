@@ -47,8 +47,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/", "/api/health", "/api/ping", "/api/test").permitAll()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/api/health", "/api/ping", "/api/info").permitAll()
+                        // Everything else under /api needs a token.
+                        .requestMatchers("/api/**").authenticated()
+                        // The bundled React app is public: the browser has to be able
+                        // to load the shell in order to render the login page at all.
+                        // Authorisation happens on the API calls the app then makes.
+                        .anyRequest().permitAll()
                 )
                 // Without this, an unauthenticated request gets 403. The web client's
                 // axios interceptor only clears the stored token and returns to the

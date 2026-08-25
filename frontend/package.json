@@ -2,6 +2,8 @@
   "name": "cowtrack-frontend",
   "version": "0.1.0",
   "private": true,
+  "comment": "The proxy forwards /api calls to the backend during `npm start`, so the dev server and the packaged jar both talk to a same-origin /api.",
+  "proxy": "http://localhost:8081",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",

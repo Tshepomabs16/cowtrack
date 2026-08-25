@@ -15,6 +15,9 @@ cowtrack/
 └── frontend/   React 19 single-page app (Create React App)
 ```
 
+`backend` is the build root: its `mvn package` builds `frontend` and bundles the
+output, producing one jar that serves both.
+
 ## Stack
 
 | | Backend | Frontend |
@@ -41,39 +44,49 @@ The core entities live in `backend/src/main/java/com/cowtrack/entity/`:
 - **Reminder** — scheduled husbandry tasks
 - **User** — account and ownership
 
-## Running locally
+## Running it
 
-Both halves run separately. Start the backend first — the frontend expects it on port 8081.
+The project builds to **a single jar** that serves both the API and the web client
+from one port. `mvn package` compiles the React app and bundles it into the jar as
+static content, so there is nothing separate to deploy.
 
 ### Prerequisites
 
 - JDK 17+
-- Node.js 18+ and npm
-- MySQL 8 listening on **port 3307** with a database named `cowtrack`
+- MySQL 8 on **port 3307** with a `cowtrack` database — *or* use the `dev` profile
+  below, which needs no database at all
 
-### Backend
+Node is **not** required: the build downloads its own pinned copy.
+
+### One command
 
 ```bash
 cd backend
-./mvnw spring-boot:run
+./mvnw clean package
+java -jar target/cowtrack-backend-0.0.1-SNAPSHOT.jar --spring.profiles.active=dev
 ```
 
-Serves on <http://localhost:8081>. Datasource settings are in
-`backend/src/main/resources/application.yml`. Hibernate runs with `ddl-auto: update`,
-so the schema is created and migrated automatically on first start.
+Open <http://localhost:8081>. The `dev` profile uses an in-memory H2 database, so
+you can register an account and click around immediately; data is discarded on exit.
+Drop `--spring.profiles.active=dev` to run against MySQL.
 
-### Frontend
+### Working on the frontend
+
+For hot reload, run the CRA dev server alongside the backend:
 
 ```bash
-cd frontend
-npm install
-npm start
+cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # terminal 1
+cd frontend && npm install && npm start                               # terminal 2
 ```
 
-Serves on <http://localhost:3000> and proxies API calls to `REACT_APP_API_URL`.
+The dev server on <http://localhost:3000> proxies `/api` to port 8081 (see `proxy`
+in `package.json`), so the client talks to a same-origin `/api` in both modes and
+CORS never comes into play.
 
-> The per-project README in `frontend/` says `npm run dev` — that script does not
-> exist. This is a Create React App project, so the dev server is `npm start`.
+### Backend-only builds
+
+`./mvnw package -DskipFrontend=true` skips the React build entirely — much faster
+when you are only touching Java.
 
 ## Authentication
 
@@ -111,11 +124,12 @@ bundle and is therefore **public** — never put a private secret in that file.
 ## Testing
 
 ```bash
-cd backend && ./mvnw test
+cd backend && ./mvnw test -DskipFrontend=true
 ```
 
 Tests run against an in-memory H2 database via the `test` profile, so no MySQL
-instance is needed. `AuthIntegrationTest` covers the full login flow end to end.
+instance is needed. `AuthIntegrationTest` covers the login flow end to end;
+`SpaRoutingTest` guards the boundary between client routes and API paths.
 
 ## Known issues
 

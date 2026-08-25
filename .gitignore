@@ -30,3 +30,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# frontend-maven-plugin downloads a pinned Node/npm here
+frontend/node/

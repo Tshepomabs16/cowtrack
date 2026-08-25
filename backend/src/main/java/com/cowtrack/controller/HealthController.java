@@ -10,11 +10,12 @@ import java.util.Map;
 public class HealthController {
 
     /**
-     * Developer landing page listing the available endpoints. Lives here rather than
-     * on the application class so that {@code CowTrackApplication} stays a plain
-     * entrypoint.
+     * Developer landing page listing the available endpoints.
+     *
+     * <p>Served from {@code /api/info} rather than {@code /} because the bundled
+     * React application now owns the site root.
      */
-    @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
+    @GetMapping(value = "/api/info", produces = MediaType.TEXT_HTML_VALUE)
     public String welcome() {
         return """
                <html>
