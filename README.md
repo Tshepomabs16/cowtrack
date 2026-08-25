@@ -155,7 +155,7 @@ bundle and is therefore **public** — never put a private secret in that file.
 cd backend && ./mvnw test -DskipFrontend=true
 ```
 
-Tests run against an in-memory H2 database via the `test` profile, so no MySQL
+Tests run against an in-memory H2 database via the `test` profile, so no PostgreSQL
 instance is needed. `AuthIntegrationTest` covers the login flow end to end;
 `SpaRoutingTest` guards the boundary between client routes and API paths.
 
