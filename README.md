@@ -174,6 +174,13 @@ the payload itself. The auth endpoints are the one exception — they return
 `ApiContractTest` walks every path declared in `services/api.js` and asserts the
 backend answers it, so a client call cannot silently start 404ing.
 
+## Where this is going
+
+[ROADMAP.md](ROADMAP.md) records what the system is missing and what it would take to
+serve farmers of every size. The nine gaps in Part 1 were each verified against the
+source; the most serious is that **no query is scoped to an owner**, so a second
+farmer signing up would see the first one's herd.
+
 ## Known issues
 
 - `REACT_APP_WS_URL` has no server behind it — the backend has no WebSocket starter
