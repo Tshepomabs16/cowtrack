@@ -1,24 +1,22 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FaTimes, FaHeartbeat, FaTemperatureHigh, FaWeight, FaMapMarkerAlt } from 'react-icons/fa';
 import './CowInfoPanel.css';
 
-const CowInfoPanel = ({ cow, onClose, onViewInfo }) => {
-  // Mock data - replace with API call
-  const cowDetails = {
-    temperature: "38.5°C",
-    heartRate: "65 bpm",
-    weight: "450 kg",
-    breed: "Holstein",
-    age: "3 years",
-    lastFeeding: "2 hours ago",
-    healthScore: 92
-  };
+/** Renders a dash rather than a partial string when a reading is missing. */
+const value = (reading, suffix) =>
+  reading === null || reading === undefined || reading === '' ? '—' : `${reading}${suffix}`;
+
+const CowInfoPanel = ({ cow, onClose }) => {
+  const navigate = useNavigate();
+
+  if (!cow) return null;
 
   return (
     <div className="cow-info-panel">
       <div className="panel-header">
         <h3>{cow.name} - Details</h3>
-        <button className="close-btn" onClick={onClose}>
+        <button className="close-btn" onClick={onClose} aria-label="Close details">
           <FaTimes />
         </button>
       </div>
@@ -27,57 +25,53 @@ const CowInfoPanel = ({ cow, onClose, onViewInfo }) => {
         <div className="cow-stats">
           <div className="stat-item">
             <FaTemperatureHigh className="stat-icon" />
-            <span className="stat-value">{cowDetails.temperature}</span>
+            <span className="stat-value">{value(cow.temperature, '°C')}</span>
             <span className="stat-label">Temperature</span>
           </div>
 
           <div className="stat-item">
             <FaHeartbeat className="stat-icon" />
-            <span className="stat-value">{cowDetails.heartRate}</span>
+            <span className="stat-value">{value(cow.heartRate, ' bpm')}</span>
             <span className="stat-label">Heart Rate</span>
           </div>
 
           <div className="stat-item">
             <FaWeight className="stat-icon" />
-            <span className="stat-value">{cowDetails.weight}</span>
+            <span className="stat-value">{value(cow.weight, ' kg')}</span>
             <span className="stat-label">Weight</span>
           </div>
 
           <div className="stat-item">
             <FaMapMarkerAlt className="stat-icon" />
-            <span className="stat-value">Active</span>
+            <span className={`status-badge ${cow.status || ''}`}>
+              {cow.status || 'unknown'}
+            </span>
             <span className="stat-label">Status</span>
           </div>
         </div>
 
         <div className="cow-details">
           <div className="detail-row">
+            <span className="detail-label">Tag:</span>
+            <span className="detail-value">{cow.tagId || '—'}</span>
+          </div>
+          <div className="detail-row">
             <span className="detail-label">Breed:</span>
-            <span className="detail-value">{cowDetails.breed}</span>
+            <span className="detail-value">{cow.breed || '—'}</span>
           </div>
           <div className="detail-row">
             <span className="detail-label">Age:</span>
-            <span className="detail-value">{cowDetails.age}</span>
+            <span className="detail-value">{value(cow.age, ' years')}</span>
           </div>
           <div className="detail-row">
-            <span className="detail-label">Last Feeding:</span>
-            <span className="detail-value">{cowDetails.lastFeeding}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Health Score:</span>
-            <span className="detail-value health-score">{cowDetails.healthScore}/100</span>
+            <span className="detail-label">Last seen:</span>
+            <span className="detail-value">{cow.lastSeen || '—'}</span>
           </div>
         </div>
 
         <div className="panel-actions">
-          <button className="btn-primary" onClick={onViewInfo}>
+          <button className="btn-primary" onClick={() => navigate(`/cows/${cow.id}`)}>
             View Full History
-          </button>
-          <button className="btn-secondary">
-            Generate Health Report
-          </button>
-          <button className="btn-alert">
-            Send Alert
           </button>
         </div>
       </div>

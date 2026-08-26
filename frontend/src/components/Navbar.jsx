@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FiSearch,
@@ -12,7 +12,24 @@ import {
 } from 'react-icons/fi';
 import { GiCow } from 'react-icons/gi';
 import { useTheme } from '../context/ThemeContext';
+import { alertsAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
+
+/** Short human-readable age of a timestamp, for the notification list. */
+const relativeTime = (timestamp) => {
+  if (!timestamp) return '';
+  const then = new Date(timestamp);
+  if (Number.isNaN(then.getTime())) return '';
+
+  const minutes = Math.round((Date.now() - then.getTime()) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+  return `${Math.round(hours / 24)} d ago`;
+};
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -22,18 +39,33 @@ const Navbar = () => {
   // persisted preference all agree. A local useState here would only have
   // changed this icon.
   const { setTheme, isDark } = useTheme();
+  const { logout } = useAuth();
   const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
 
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Mock notifications
-  const notifications = [
-    { id: 1, title: 'Health Alert', message: 'Cow CT-003 has high temperature', time: '10 min ago', unread: true },
-    { id: 2, title: 'Feeding Reminder', message: 'Morning feeding due in 30 minutes', time: '1 hour ago', unread: true },
-    { id: 3, title: 'Location Alert', message: 'Cow CT-005 left designated area', time: '2 hours ago', unread: false },
-    { id: 4, title: 'System Update', message: 'Farm sensors updated successfully', time: '1 day ago', unread: false },
-  ];
+  // Notifications are the alert feed: unresolved alerts are the unread ones.
+  const [notifications, setNotifications] = useState([]);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const response = await alertsAPI.getAll();
+      const alerts = Array.isArray(response.data) ? response.data : [];
+      setNotifications(alerts.map(alert => ({
+        id: alert.alertId,
+        title: alert.title || 'Alert',
+        message: alert.message,
+        time: relativeTime(alert.createdAt),
+        unread: !alert.isResolved,
+      })));
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      setNotifications([]);
+    }
+  }, []);
+
+  useEffect(() => { loadAlerts(); }, [loadAlerts]);
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -45,10 +77,26 @@ const Navbar = () => {
     }
   };
 
-  const handleNotificationClick = (notificationId) => {
-    // Mark as read and navigate
+  const handleNotificationClick = () => {
     navigate('/alerts');
     setShowNotifications(false);
+  };
+
+  // Clears the stored session; without this the route guard still sees an
+  // authenticated user and bounces straight back in.
+  const handleLogout = async () => {
+    setShowUserMenu(false);
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await alertsAPI.markAllAsRead();
+      await loadAlerts();
+    } catch (error) {
+      console.error('Error resolving alerts:', error);
+    }
   };
 
   const toggleSidebar = () => {
@@ -160,7 +208,7 @@ const Navbar = () => {
                     <h3>Notifications</h3>
                     <button
                       className="mark-all-read"
-                      onClick={() => console.log('Mark all as read')}
+                      onClick={handleMarkAllRead}
                     >
                       Mark all as read
                     </button>
@@ -172,7 +220,7 @@ const Navbar = () => {
                         <div
                           key={notification.id}
                           className={`notification-item ${notification.unread ? 'unread' : ''}`}
-                          onClick={() => handleNotificationClick(notification.id)}
+                          onClick={handleNotificationClick}
                         >
                           <div className="notification-content">
                             <h4>{notification.title}</h4>
@@ -254,11 +302,7 @@ const Navbar = () => {
                   <div className="user-dropdown-footer">
                     <button
                       className="logout-btn"
-                      onClick={() => {
-                        console.log('Logging out...');
-                        navigate('/login');
-                        setShowUserMenu(false);
-                      }}
+                      onClick={handleLogout}
                     >
                       <FiUser />
                       Log Out

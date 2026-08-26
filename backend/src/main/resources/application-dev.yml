@@ -22,3 +22,9 @@ spring:
     console:
       enabled: true
       path: /h2-console
+
+cowtrack:
+  seed:
+    # The dev profile uses a throwaway in-memory database, so seeding it on
+    # startup costs nothing and gives every screen something to show.
+    enabled: true

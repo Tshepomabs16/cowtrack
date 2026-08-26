@@ -10,6 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -60,6 +64,36 @@ public class GlobalExceptionHandler {
         );
 
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Framework-level request faults: wrong verb, missing or unparseable
+     * parameter, malformed body. All of these are the caller's mistake, but
+     * without explicit handlers they fell through to the catch-all below and
+     * were reported as 500s, which sends anyone debugging them looking for a
+     * server fault that does not exist.
+     */
+    @ExceptionHandler({
+            HttpRequestMethodNotSupportedException.class,
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class,
+            HttpMessageNotReadableException.class
+    })
+    public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex, WebRequest request) {
+        HttpStatus status = ex instanceof HttpRequestMethodNotSupportedException
+                ? HttpStatus.METHOD_NOT_ALLOWED
+                : HttpStatus.BAD_REQUEST;
+
+        log.warn("Rejected request to {}: {}", getRequestPath(request), ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                ex.getMessage(),
+                status.value(),
+                status.getReasonPhrase(),
+                getRequestPath(request)
+        );
+
+        return new ResponseEntity<>(errorResponse, status);
     }
 
     @ExceptionHandler(ValidationException.class)

@@ -126,6 +126,12 @@ const Register = () => {
         {/* Left side - Form */}
         <div className="auth-form-container register-form">
           <div className="auth-form-wrapper">
+            {/* Shown only under 900px, where the branding column is hidden. */}
+            <div className="brand-logo-small">
+              <GiCow />
+              <span>CowTrack</span>
+            </div>
+
             <div className="form-header">
               <div className="back-button">
                 <Link to="/login" className="back-link">

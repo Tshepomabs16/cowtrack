@@ -18,6 +18,7 @@ import {
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { analyticsAPI, healthAPI } from '../services/api';
 import './Settings.css';
 
 const Settings = () => {
@@ -28,6 +29,26 @@ const Settings = () => {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Real record counts for the data panel. There is no storage accounting in the
+  // backend, so the panel reports what the account actually holds instead.
+  const [dataCounts, setDataCounts] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([analyticsAPI.getDashboardStats(), healthAPI.getReports()])
+      .then(([dashboard, reports]) => {
+        if (cancelled) return;
+        setDataCounts({
+          cows: dashboard.data?.totalCows ?? 0,
+          alerts: dashboard.data?.activeAlerts ?? 0,
+          healthRecords: reports.data?.totalHealthRecords ?? 0,
+          vaccinations: reports.data?.totalVaccinations ?? 0,
+        });
+      })
+      .catch(error => console.error('Error loading data counts:', error));
+    return () => { cancelled = true; };
+  }, []);
 
   // Profile Settings
   const [profile, setProfile] = useState({
@@ -836,27 +857,24 @@ const Settings = () => {
                 </div>
 
                 <div className="setting-card">
-                  <h3>Storage Usage</h3>
+                  <h3>Your Data</h3>
                   <div className="storage-info">
-                    <div className="storage-meter">
-                      <div className="storage-fill" style={{ width: '65%' }}></div>
-                    </div>
                     <div className="storage-details">
                       <div className="storage-item">
-                        <span>Cattle Data</span>
-                        <span>2.4 GB</span>
+                        <span>Cattle</span>
+                        <span>{dataCounts ? dataCounts.cows : '…'}</span>
                       </div>
                       <div className="storage-item">
-                        <span>Health Records</span>
-                        <span>1.8 GB</span>
+                        <span>Health records</span>
+                        <span>{dataCounts ? dataCounts.healthRecords : '…'}</span>
                       </div>
                       <div className="storage-item">
-                        <span>Media Files</span>
-                        <span>0.8 GB</span>
+                        <span>Vaccinations</span>
+                        <span>{dataCounts ? dataCounts.vaccinations : '…'}</span>
                       </div>
                       <div className="storage-item total">
-                        <span>Total Used</span>
-                        <span>5.0 GB / 10 GB</span>
+                        <span>Open alerts</span>
+                        <span>{dataCounts ? dataCounts.alerts : '…'}</span>
                       </div>
                     </div>
                   </div>

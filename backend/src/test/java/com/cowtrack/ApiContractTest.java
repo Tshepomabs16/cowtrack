@@ -111,7 +111,34 @@ class ApiContractTest {
         expectOk("/api/alerts/count/active");
         expectOk("/api/alerts/stats");
         expectOk("/api/locations/live");
+        expectOk("/api/reminders");
         expectOk("/api/reminders/due");
+    }
+
+    /**
+     * Framework-level request faults must report the caller's mistake, not a
+     * server fault. Each of these previously surfaced as a 500.
+     */
+    @Test
+    void malformedRequestsReportClientErrorsNotServerErrors() throws Exception {
+        // Wrong verb on a real path.
+        mockMvc.perform(post("/api/cows/" + cowId).header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isMethodNotAllowed());
+
+        // Required query parameter omitted.
+        mockMvc.perform(post("/api/alerts/test/geofence-breach/" + cowId)
+                        .header("Authorization", bearer()))
+                .andExpect(status().isBadRequest());
+
+        // Body that is not valid JSON.
+        mockMvc.perform(post("/api/cows").header("Authorization", bearer())
+                        .contentType(MediaType.APPLICATION_JSON).content("{not json"))
+                .andExpect(status().isBadRequest());
+
+        // Path variable of the wrong type.
+        mockMvc.perform(get("/api/cows/not-a-number").header("Authorization", bearer()))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

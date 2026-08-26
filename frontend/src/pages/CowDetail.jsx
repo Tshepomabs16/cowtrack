@@ -329,13 +329,18 @@ const CowDetail = () => {
                     <span className="stat-label">Assigned Vet</span>
                     <span className="stat-value">{records[0]?.vetName || '—'}</span>
                   </div>
+                  {/* Feed cost and per-animal revenue are not tracked: financial
+                      records are farm-level, not attributed per cow. Showing the
+                      milk figures that do exist instead of inventing money. */}
                   <div className="stat-item">
-                    <span className="stat-label">Daily Feed Cost</span>
-                    <span className="stat-value">$8.50</span>
+                    <span className="stat-label">Latest Milk Yield</span>
+                    <span className="stat-value">
+                      {latestProduction?.milkLitres ? `${latestProduction.milkLitres} L` : '—'}
+                    </span>
                   </div>
                   <div className="stat-item">
-                    <span className="stat-label">Monthly Milk Revenue</span>
-                    <span className="stat-value">$420</span>
+                    <span className="stat-label">Records Held</span>
+                    <span className="stat-value">{records.length}</span>
                   </div>
                 </div>
 

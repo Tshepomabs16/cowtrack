@@ -8,9 +8,14 @@ const StatsCard = ({ title, value, icon, color, trend, trendUp }) => {
         <div className="stats-left">
           <h3>{title}</h3>
           <div className="stats-value">{value}</div>
-          <div className={`stats-trend ${trendUp ? 'up' : 'down'}`}>
-            {trendUp ? '📈' : '📉'} {trend}
-          </div>
+          {/* Only rendered when a trend was actually supplied. Rendering it
+              unconditionally put a red downward arrow with no value on every
+              card, implying a decline that had never been measured. */}
+          {trend && (
+            <div className={`stats-trend ${trendUp ? 'up' : 'down'}`}>
+              {trendUp ? '📈' : '📉'} {trend}
+            </div>
+          )}
         </div>
         <div className="stats-icon" style={{ color: color }}>
           {icon}

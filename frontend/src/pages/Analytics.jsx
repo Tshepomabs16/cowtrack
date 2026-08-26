@@ -75,24 +75,29 @@ const Analytics = () => {
       title: 'Total Revenue',
       value: money(financials?.totalRevenue),
       change: `Net ${money(financials?.netProfit)}`,
+      tone: Number(financials?.netProfit) >= 0 ? 'positive' : 'negative',
       icon: <FiDollarSign />, color: '#10b981',
     },
     {
       title: 'Avg Milk Production',
       value: dashboard?.averageMilkPerDay ? `${dashboard.averageMilkPerDay} L/day` : '—',
       change: milkTrend?.trend || 'No history',
+      tone: milkTrend?.trend === 'Rising' ? 'positive'
+          : milkTrend?.trend === 'Falling' ? 'negative' : 'neutral',
       icon: <FiTrendingUp />, color: '#3b82f6',
     },
     {
       title: 'Herd Size',
       value: dashboard?.totalCows ?? '—',
       change: `${breedDistribution.length} breeds`,
+      tone: 'neutral',
       icon: <FiUsers />, color: '#8b5cf6',
     },
     {
       title: 'Open Alerts',
       value: dashboard?.activeAlerts ?? '—',
       change: dashboard?.activeAlerts ? 'Needs attention' : 'All clear',
+      tone: dashboard?.activeAlerts ? 'negative' : 'positive',
       icon: <FiPieChart />, color: '#f59e0b',
     },
   ];
@@ -125,7 +130,7 @@ const Analytics = () => {
             <div className="kpi-content">
               <h3>{kpi.title}</h3>
               <p className="kpi-value">{kpi.value}</p>
-              <p className="kpi-change positive">{kpi.change}</p>
+              <p className={`kpi-change ${kpi.tone || 'neutral'}`}>{kpi.change}</p>
             </div>
           </div>
         ))}

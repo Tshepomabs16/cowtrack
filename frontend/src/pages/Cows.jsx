@@ -5,6 +5,16 @@ import { FaTemperatureHigh, FaHeartbeat } from 'react-icons/fa';
 import { GiCow } from 'react-icons/gi';
 import './Cows.css';
 
+/** The API returns a full ISO timestamp; only the date and time are useful here. */
+const formatCheck = (timestamp) => {
+  if (!timestamp) return 'never';
+  const when = new Date(timestamp);
+  if (Number.isNaN(when.getTime())) return 'unknown';
+  return when.toLocaleString(undefined, {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+};
+
 const Cows = () => {
   const [cows, setCows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,11 +163,11 @@ const Cows = () => {
                 </div>
                 <div className="detail-row">
                   <span>Age:</span>
-                  <strong>{cow.age}</strong>
+                  <strong>{cow.age ?? '—'}</strong>
                 </div>
                 <div className="detail-row">
                   <span>Weight:</span>
-                  <strong>{cow.weight}</strong>
+                  <strong>{cow.weight ? `${cow.weight} kg` : '—'}</strong>
                 </div>
                 <div className="detail-row">
                   <span>Location:</span>
@@ -168,14 +178,14 @@ const Cows = () => {
               <div className="cow-health">
                 <div className="health-metric">
                   <FaTemperatureHigh />
-                  <span>{cow.temperature}</span>
+                  <span>{cow.temperature ? `${cow.temperature}°C` : '—'}</span>
                 </div>
                 <div className="health-metric">
                   <FaHeartbeat />
-                  <span>65 bpm</span>
+                  <span>{cow.heartRate ? `${cow.heartRate} bpm` : '—'}</span>
                 </div>
                 <div className="last-check">
-                  Last check: {cow.lastCheck}
+                  Last check: {formatCheck(cow.lastCheck)}
                 </div>
               </div>
 

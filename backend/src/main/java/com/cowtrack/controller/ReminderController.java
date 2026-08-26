@@ -35,6 +35,12 @@ public class ReminderController extends BaseController {
         return success(reminders);
     }
 
+    /** Every reminder. The client lists them all and groups them itself. */
+    @GetMapping
+    public ResponseEntity<?> getAllReminders() {
+        return success(reminderService.getAllReminders());
+    }
+
     @GetMapping("/active")
     public ResponseEntity<?> getActiveReminders() {
         List<ReminderResponse> reminders = reminderService.getActiveReminders();

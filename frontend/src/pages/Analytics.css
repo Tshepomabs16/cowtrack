@@ -139,6 +139,10 @@
   color: var(--ok);
 }
 
+.kpi-change.neutral {
+  color: var(--text-faint);
+}
+
 .kpi-change.negative {
   color: var(--danger);
 }

@@ -8,6 +8,8 @@ public interface ReminderService {
     ReminderResponse createReminder(ReminderRequest request);
     ReminderResponse getReminderById(Long reminderId);
     List<ReminderResponse> getRemindersByCow(Long cowId);
+    List<ReminderResponse> getAllReminders();
+
     List<ReminderResponse> getActiveReminders();
     ReminderResponse updateReminder(Long reminderId, ReminderRequest request);
     ReminderResponse markAsCompleted(Long reminderId);

@@ -4,7 +4,8 @@ import { format, isToday, isTomorrow, isPast } from 'date-fns';
 import { remindersAPI, cowsAPI } from '../services/api';
 import './Reminders.css';
 
-const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY', 'ONCE'];
+// Must match Reminder.Frequency on the backend; anything else is rejected.
+const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY'];
 
 /**
  * Reminders are scheduled per animal, with a type and a recurrence. There is no

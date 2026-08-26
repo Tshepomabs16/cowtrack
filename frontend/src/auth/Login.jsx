@@ -98,6 +98,12 @@ const Login = () => {
         {/* Right side - Login Form */}
         <div className="auth-form-container">
           <div className="auth-form-wrapper">
+            {/* Shown only under 900px, where the branding column is hidden. */}
+            <div className="brand-logo-small">
+              <GiCow />
+              <span>CowTrack</span>
+            </div>
+
             <div className="form-header">
               <h2>Welcome Back</h2>
               <p>Sign in to your account to continue</p>

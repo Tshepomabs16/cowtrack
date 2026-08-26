@@ -67,6 +67,14 @@ public class ReminderServiceImpl implements ReminderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ReminderResponse> getAllReminders() {
+        return reminderRepository.findAll().stream()
+                .map(this::toResponse)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
     public List<ReminderResponse> getActiveReminders() {
         return reminderRepository.findByIsCompletedFalse().stream()
                 .map(this::toResponse)
