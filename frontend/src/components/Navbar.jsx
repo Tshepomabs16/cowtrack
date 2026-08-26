@@ -11,12 +11,19 @@ import {
   FiSun
 } from 'react-icons/fi';
 import { GiCow } from 'react-icons/gi';
+import { useTheme } from '../context/ThemeContext';
 import './Navbar.css';
 
 const Navbar = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Theme lives in ThemeContext so the toggle, the Settings page and the
+  // persisted preference all agree. A local useState here would only have
+  // changed this icon.
+  const { setTheme, isDark } = useTheme();
+  const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -68,9 +75,9 @@ const Navbar = () => {
     { icon: <FiSettings />, label: 'Settings', action: () => navigate('/settings') },
     { icon: <FiHelpCircle />, label: 'Help & Support', action: () => navigate('/help') },
     {
-      icon: isDarkMode ? <FiSun /> : <FiMoon />,
-      label: isDarkMode ? 'Light Mode' : 'Dark Mode',
-      action: () => setIsDarkMode(!isDarkMode)
+      icon: isDark ? <FiSun /> : <FiMoon />,
+      label: isDark ? 'Light Mode' : 'Dark Mode',
+      action: toggleTheme
     },
   ];
 
@@ -127,10 +134,10 @@ const Navbar = () => {
             {/* Dark Mode Toggle */}
             <button
               className="nav-action-btn theme-toggle"
-              onClick={() => setIsDarkMode(!isDarkMode)}
-              aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              onClick={toggleTheme}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             >
-              {isDarkMode ? <FiSun /> : <FiMoon />}
+              {isDark ? <FiSun /> : <FiMoon />}
             </button>
 
             {/* Notifications */}

@@ -12,11 +12,20 @@ import {
   FiMenu
 } from 'react-icons/fi';
 import { GiCow } from 'react-icons/gi';
+import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [isOpen, setIsOpen] = React.useState(true);
+
+  // Clear the stored token and user before navigating. Without this the guard on
+  // "/" still sees an authenticated session and sends you straight back in.
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const menuItems = [
     { icon: <FiHome />, label: 'Dashboard', path: '/dashboard' },
@@ -36,7 +45,7 @@ const Sidebar = () => {
           <GiCow className="logo-icon" />
           <h2>CowTrack</h2>
         </div>
-        <button className="menu-toggle" onClick={() => setIsOpen(!isOpen)}>
+        <button className="menu-toggle" onClick={() => setIsOpen(!isOpen)} aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}>
           <FiMenu />
         </button>
       </div>
@@ -58,22 +67,12 @@ const Sidebar = () => {
       </nav>
 
       <div className="sidebar-footer">
-        <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-          <FiSettings className="nav-icon" />
-          <span className="nav-label">Settings</span>
-        </NavLink>
-        <div
-          className="nav-item"
-          onClick={() => {
-            // Handle logout logic here
-            console.log('Logging out...');
-            navigate('/');
-          }}
-          style={{ cursor: 'pointer' }}
-        >
+        {/* Settings already appears in menuItems above; a second link here was a
+            duplicate. Only the sign-out control belongs in the footer. */}
+        <button type="button" className="nav-item nav-item-button" onClick={handleLogout}>
           <FiLogOut className="nav-icon" />
           <span className="nav-label">Logout</span>
-        </div>
+        </button>
       </div>
     </div>
   );

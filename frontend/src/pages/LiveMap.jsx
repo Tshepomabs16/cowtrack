@@ -52,7 +52,7 @@ const LiveMap = () => {
   }, [handleLocationUpdate, handleHealthAlert]);
 
   return (
-    <div className="live-map-page">
+    <div className="live-map-page page-enter">
       <div className="page-header">
         <div className="header-left">
           <h1><FiMapPin /> Live Map</h1>

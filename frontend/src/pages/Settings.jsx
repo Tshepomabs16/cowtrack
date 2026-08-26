@@ -17,10 +17,12 @@ import {
   FiEyeOff
 } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import './Settings.css';
 
 const Settings = () => {
   const { user, updateUser } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('profile');
   const [saving, setSaving] = useState(false);
   const [showOldPassword, setShowOldPassword] = useState(false);
@@ -60,7 +62,7 @@ const Settings = () => {
 
   // Appearance Settings
   const [appearance, setAppearance] = useState({
-    theme: 'light',
+    theme: theme,
     density: 'comfortable',
     fontSize: 'medium',
     colorScheme: 'blue',
@@ -160,13 +162,13 @@ const Settings = () => {
     { id: 'profile', label: 'Profile', icon: <FiUser /> },
     { id: 'notifications', label: 'Notifications', icon: <FiBell /> },
     { id: 'security', label: 'Security', icon: <FiShield /> },
-    { id: 'appearance', label: 'Appearance', icon: appearance.theme === 'dark' ? <FiMoon /> : <FiSun /> },
+    { id: 'appearance', label: 'Appearance', icon: theme === 'dark' ? <FiMoon /> : <FiSun /> },
     { id: 'data', label: 'Data & Backup', icon: <FiDatabase /> },
     { id: 'system', label: 'System', icon: <FiSettings /> },
   ];
 
   return (
-    <div className="settings-page">
+    <div className="settings-page page-enter">
       <div className="settings-header">
         <h1><FiSettings /> Settings</h1>
         <p>Manage your account preferences and system configuration</p>
@@ -463,6 +465,7 @@ const Settings = () => {
                           type="button"
                           className="password-toggle"
                           onClick={() => setShowOldPassword(!showOldPassword)}
+                          aria-label={showOldPassword ? 'Hide current password' : 'Show current password'}
                         >
                           {showOldPassword ? <FiEyeOff /> : <FiEye />}
                         </button>
@@ -482,6 +485,7 @@ const Settings = () => {
                           type="button"
                           className="password-toggle"
                           onClick={() => setShowNewPassword(!showNewPassword)}
+                          aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
                         >
                           {showNewPassword ? <FiEyeOff /> : <FiEye />}
                         </button>
@@ -501,6 +505,7 @@ const Settings = () => {
                           type="button"
                           className="password-toggle"
                           onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                         >
                           {showConfirmPassword ? <FiEyeOff /> : <FiEye />}
                         </button>
@@ -609,8 +614,11 @@ const Settings = () => {
                   <h3>Theme</h3>
                   <div className="theme-options">
                     <div
-                      className={`theme-option ${appearance.theme === 'light' ? 'active' : ''}`}
-                      onClick={() => setAppearance({...appearance, theme: 'light'})}
+                      className={`theme-option ${theme === 'light' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTheme('light');
+                        setAppearance({...appearance, theme: 'light'});
+                      }}
                     >
                       <div className="theme-preview light">
                         <FiSun />
@@ -619,8 +627,11 @@ const Settings = () => {
                     </div>
 
                     <div
-                      className={`theme-option ${appearance.theme === 'dark' ? 'active' : ''}`}
-                      onClick={() => setAppearance({...appearance, theme: 'dark'})}
+                      className={`theme-option ${theme === 'dark' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTheme('dark');
+                        setAppearance({...appearance, theme: 'dark'});
+                      }}
                     >
                       <div className="theme-preview dark">
                         <FiMoon />
@@ -629,8 +640,11 @@ const Settings = () => {
                     </div>
 
                     <div
-                      className={`theme-option ${appearance.theme === 'auto' ? 'active' : ''}`}
-                      onClick={() => setAppearance({...appearance, theme: 'auto'})}
+                      className={`theme-option ${theme === 'auto' ? 'active' : ''}`}
+                      onClick={() => {
+                        setTheme('auto');
+                        setAppearance({...appearance, theme: 'auto'});
+                      }}
                     >
                       <div className="theme-preview auto">
                         <FiSun />

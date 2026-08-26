@@ -52,7 +52,7 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="dashboard">
+    <div className="dashboard page-enter">
       <div className="dashboard-header">
         <h1>Dashboard</h1>
         <p>Real-time cattle monitoring and tracking</p>
@@ -61,20 +61,35 @@ const Dashboard = () => {
       <div className="dashboard-grid">
         <div className="map-section">
           <h2>Cattle Locations</h2>
-          <CattleMap />
+          {loading ? (
+            <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius)' }} />
+          ) : (
+            <CattleMap />
+          )}
         </div>
 
         <div className="stats-section">
           <div className="stats-row">
-            <StatsCard title="Total Cattle" value={show(stats?.totalCows)} icon="🐄" />
-            <StatsCard title="Monitored" value={show(health?.monitored)} icon="📡" />
-            <StatsCard
-              title="Health Alerts"
-              value={show(stats?.activeAlerts)}
-              icon="⚠️"
-              color={stats?.activeAlerts ? '#ef4444' : undefined}
-            />
-            <StatsCard title="Avg Temperature" value={show(averageTemperature())} icon="🌡️" />
+            {loading ? (
+              <>
+                <div className="skeleton" style={{ height: 100, borderRadius: 'var(--radius)' }} />
+                <div className="skeleton" style={{ height: 100, borderRadius: 'var(--radius)' }} />
+                <div className="skeleton" style={{ height: 100, borderRadius: 'var(--radius)' }} />
+                <div className="skeleton" style={{ height: 100, borderRadius: 'var(--radius)' }} />
+              </>
+            ) : (
+              <>
+                <StatsCard title="Total Cattle" value={show(stats?.totalCows)} icon="🐄" />
+                <StatsCard title="Monitored" value={show(health?.monitored)} icon="📡" />
+                <StatsCard
+                  title="Health Alerts"
+                  value={show(stats?.activeAlerts)}
+                  icon="⚠️"
+                  color={stats?.activeAlerts ? '#ef4444' : undefined}
+                />
+                <StatsCard title="Avg Temperature" value={show(averageTemperature())} icon="🌡️" />
+              </>
+            )}
           </div>
 
           <div className="alerts-section">

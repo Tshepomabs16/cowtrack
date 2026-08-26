@@ -137,15 +137,26 @@ const Alerts = () => {
 
   if (loading) {
     return (
-      <div className="alerts-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading alerts...</p>
+      <div className="alerts-page page-enter">
+        <div className="alerts-header">
+          <div className="header-left">
+            <div className="skeleton" style={{ width: 220, height: 28, marginBottom: 8 }} />
+            <div className="skeleton" style={{ width: 160, height: 14 }} />
+          </div>
+        </div>
+        <div className="alerts-stats">
+          {[1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="skeleton" style={{ height: 90, borderRadius: 'var(--radius)' }} />
+          ))}
+        </div>
+        <div className="skeleton" style={{ height: 60, borderRadius: 'var(--radius)', marginBottom: 20 }} />
+        <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius)' }} />
       </div>
     );
   }
 
   return (
-    <div className="alerts-page">
+    <div className="alerts-page page-enter">
       {/* Header */}
       <div className="alerts-header">
         <div className="header-left">
@@ -153,10 +164,10 @@ const Alerts = () => {
           <p>Monitor and respond to system alerts</p>
         </div>
         <div className="header-actions">
-          <button className="btn-primary" onClick={refresh}>
+          <button className="btn-primary" onClick={refresh} aria-label="Refresh alerts">
             <FiRefreshCw /> Refresh
           </button>
-          <button className="btn-secondary">
+          <button className="btn-secondary" aria-label="Export alerts">
             <FiDownload /> Export
           </button>
         </div>

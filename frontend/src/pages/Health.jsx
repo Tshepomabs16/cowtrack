@@ -121,7 +121,7 @@ const Health = () => {
   };
 
   return (
-    <div className="health-page">
+    <div className="health-page page-enter">
       <div className="page-header">
         <h1>Health Monitoring</h1>
         <p>Track and analyze herd health metrics</p>
@@ -149,7 +149,7 @@ const Health = () => {
       </div>
 
       <div className="health-overview">
-        <div className="overview-card">
+        <div className="overview-card" data-stagger style={{ '--stagger-i': 0 }}>
           <div className="overview-icon temp">
             <FiThermometer />
           </div>
@@ -160,7 +160,7 @@ const Health = () => {
           </div>
         </div>
 
-        <div className="overview-card">
+        <div className="overview-card" data-stagger style={{ '--stagger-i': 1 }}>
           <div className="overview-icon heart">
             <FiHeart />
           </div>
@@ -173,7 +173,7 @@ const Health = () => {
           </div>
         </div>
 
-        <div className="overview-card">
+        <div className="overview-card" data-stagger style={{ '--stagger-i': 2 }}>
           <div className="overview-icon activity">
             <FiActivity />
           </div>
@@ -184,7 +184,7 @@ const Health = () => {
           </div>
         </div>
 
-        <div className="overview-card">
+        <div className="overview-card" data-stagger style={{ '--stagger-i': 3 }}>
           <div className="overview-icon trend">
             <FiTrendingUp />
           </div>

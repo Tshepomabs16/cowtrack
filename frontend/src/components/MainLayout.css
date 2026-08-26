@@ -1,21 +1,32 @@
 .main-layout {
   display: flex;
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--bg);
 }
 
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-left: 250px;
+  margin-left: var(--sidebar-w);
 }
 
 .content-area {
   flex: 1;
-  padding: 30px;
+  padding: 28px 32px 60px;
   overflow-y: auto;
-  background: #f9fafb;
+  background: transparent;
+  max-width: 1540px;
+}
+
+@media (max-width: 980px) {
+  .main-content {
+    margin-left: 0;
+  }
+
+  .content-area {
+    padding: 22px 16px 48px;
+  }
 }
 
 @media (max-width: 768px) {

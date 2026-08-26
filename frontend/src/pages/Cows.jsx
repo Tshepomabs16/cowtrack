@@ -62,14 +62,6 @@ const Cows = () => {
       }
     };
 
-  const statusColors = {
-    healthy: '#10b981',
-    feeding: '#3b82f6',
-    inactive: '#f59e0b',
-    pregnant: '#8b5cf6',
-    alert: '#ef4444'
-  };
-
   // The request already applies the status filter server-side. Narrowing by search
   // term locally keeps typing responsive without a round trip per keystroke.
   const filteredCows = cows.filter(cow => {
@@ -80,7 +72,7 @@ const Cows = () => {
   });
 
   return (
-    <div className="cows-page">
+    <div className="cows-page page-enter">
       <div className="page-header">
         <h1>Cattle Management</h1>
         <p>Monitor and manage your herd</p>
@@ -94,11 +86,12 @@ const Cows = () => {
             placeholder="Search by name or tag..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            aria-label="Search cattle by name or tag"
           />
         </div>
 
         <div className="filters">
-          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} aria-label="Filter by status">
             <option value="all">All Status</option>
             <option value="healthy">Healthy</option>
             <option value="feeding">Feeding</option>
@@ -106,100 +99,120 @@ const Cows = () => {
             <option value="pregnant">Pregnant</option>
             <option value="alert">Alert</option>
           </select>
-          <button className="btn-primary">
+          <button className="btn-primary" aria-label="Open more filters">
             <FiFilter /> More Filters
           </button>
-          <button className="btn-success">
+          <button className="btn-success" aria-label="Add new cow">
             <FiPlus /> Add New Cow
           </button>
         </div>
       </div>
 
       <div className="cows-grid">
-        {filteredCows.map(cow => (
-          <div key={cow.cowId} className="cow-card">
-            <div className="cow-header">
-              <div className="cow-icon">
-                <GiCow />
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="cow-card" style={{ cursor: 'default' }}>
+              <div className="cow-header">
+                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
+                <div style={{ flex: 1 }}>
+                  <div className="skeleton" style={{ width: '50%', height: 14, marginBottom: 6 }} />
+                  <div className="skeleton" style={{ width: '30%', height: 10 }} />
+                </div>
               </div>
-              <div className="cow-info">
-                <h3>{cow.name}</h3>
-                <p className="cow-tag">Tag: {cow.tagId}</p>
+              <div className="cow-details">
+                <div className="skeleton" style={{ height: 80, borderRadius: 6 }} />
               </div>
-              <span
-                className="status-badge"
-                style={{ backgroundColor: statusColors[cow.status] || '#6b7280' }}
-              >
-                {cow.status}
-              </span>
+              <div className="cow-health">
+                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 6 }} />
+                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: 6 }} />
+                <div className="skeleton" style={{ width: 60, height: 14, borderRadius: 4 }} />
+              </div>
+              <div className="skeleton" style={{ height: 36, borderRadius: 8 }} />
             </div>
+          ))
+        ) : (
+          filteredCows.map(cow => (
+            <div key={cow.cowId} className="cow-card" data-stagger style={{ '--stagger-i': 0 }}>
+              <div className="cow-header">
+                <div className="cow-icon">
+                  <GiCow />
+                </div>
+                <div className="cow-info">
+                  <h3>{cow.name}</h3>
+                  <p className="cow-tag">Tag: {cow.tagId}</p>
+                </div>
+                <span className={`status-badge ${cow.status || ''}`}>
+                  {cow.status || 'unknown'}
+                </span>
+              </div>
 
-            <div className="cow-details">
-              <div className="detail-row">
-                <span>Breed:</span>
-                <strong>{cow.breed}</strong>
+              <div className="cow-details">
+                <div className="detail-row">
+                  <span>Breed:</span>
+                  <strong>{cow.breed}</strong>
+                </div>
+                <div className="detail-row">
+                  <span>Age:</span>
+                  <strong>{cow.age}</strong>
+                </div>
+                <div className="detail-row">
+                  <span>Weight:</span>
+                  <strong>{cow.weight}</strong>
+                </div>
+                <div className="detail-row">
+                  <span>Location:</span>
+                  <strong>{cow.location}</strong>
+                </div>
               </div>
-              <div className="detail-row">
-                <span>Age:</span>
-                <strong>{cow.age}</strong>
-              </div>
-              <div className="detail-row">
-                <span>Weight:</span>
-                <strong>{cow.weight}</strong>
-              </div>
-              <div className="detail-row">
-                <span>Location:</span>
-                <strong>{cow.location}</strong>
-              </div>
-            </div>
 
-            <div className="cow-health">
-              <div className="health-metric">
-                <FaTemperatureHigh />
-                <span>{cow.temperature}</span>
+              <div className="cow-health">
+                <div className="health-metric">
+                  <FaTemperatureHigh />
+                  <span>{cow.temperature}</span>
+                </div>
+                <div className="health-metric">
+                  <FaHeartbeat />
+                  <span>65 bpm</span>
+                </div>
+                <div className="last-check">
+                  Last check: {cow.lastCheck}
+                </div>
               </div>
-              <div className="health-metric">
-                <FaHeartbeat />
-                <span>65 bpm</span>
-              </div>
-              <div className="last-check">
-                Last check: {cow.lastCheck}
-              </div>
-            </div>
 
-            <div className="cow-actions">
-              <button className="btn-view" onClick={() => window.location.href = `/cows/${cow.cowId}`}>
-                View Details
-              </button>
-              <button className="btn-edit">
-                <FiEdit2 />
-              </button>
-              <button className="btn-delete" onClick={() => handleDeleteCow(cow.cowId)}>
-                <FiTrash2 />
-              </button>
+              <div className="cow-actions">
+                <button className="btn-view" onClick={() => window.location.href = `/cows/${cow.cowId}`} aria-label={`View details for ${cow.name}`}>
+                  View Details
+                </button>
+                <button className="btn-edit" aria-label={`Edit ${cow.name}`}>
+                  <FiEdit2 />
+                </button>
+                <button className="btn-delete" onClick={() => handleDeleteCow(cow.cowId)} aria-label={`Delete ${cow.name}`}>
+                  <FiTrash2 />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       <div className="summary-stats">
-        <div className="stat-card">
+        <div className="stat-card" data-stagger style={{ '--stagger-i': 0 }}>
           <h3>Total Cattle</h3>
           <p className="stat-number">{cows.length}</p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" data-stagger style={{ '--stagger-i': 1 }}>
           <h3>Healthy</h3>
           <p className="stat-number" style={{color: '#10b981'}}>
             {cows.filter(c => c.status === 'healthy').length}
           </p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" data-stagger style={{ '--stagger-i': 2 }}>
           <h3>Pregnant</h3>
           <p className="stat-number" style={{color: '#8b5cf6'}}>
             {cows.filter(c => c.status === 'pregnant').length}
           </p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card" data-stagger style={{ '--stagger-i': 3 }}>
           <h3>Need Attention</h3>
           <p className="stat-number" style={{color: '#ef4444'}}>
             {cows.filter(c => c.status === 'alert').length}

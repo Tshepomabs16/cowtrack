@@ -60,7 +60,20 @@ const AlertFeed = ({ limit = 6 }) => {
   };
 
   if (loading) {
-    return <div className="alert-feed"><p className="alert-empty">Loading alerts…</p></div>;
+    return (
+      <div className="alert-feed">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="alert-item" style={{ opacity: 1 }}>
+            <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 6, flexShrink: 0 }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="skeleton" style={{ width: '40%', height: 12 }} />
+              <div className="skeleton" style={{ width: '80%', height: 10 }} />
+              <div className="skeleton" style={{ width: '25%', height: 10 }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (error) {

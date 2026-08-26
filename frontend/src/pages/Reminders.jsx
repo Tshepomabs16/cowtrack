@@ -117,17 +117,35 @@ const Reminders = () => {
   const completed = reminders.filter(r => r.isCompleted);
 
   if (loading) {
-    return <div className="reminders-page"><p>Loading reminders…</p></div>;
+    return (
+      <div className="reminders-page page-enter">
+        <div className="page-header">
+          <div className="header-left">
+            <div className="skeleton" style={{ width: 240, height: 28, marginBottom: 8 }} />
+            <div className="skeleton" style={{ width: 180, height: 14 }} />
+          </div>
+        </div>
+        <div className="reminders-overview">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="skeleton" style={{ height: 90, borderRadius: 'var(--radius)' }} />
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+          <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius)' }} />
+          <div className="skeleton" style={{ height: 300, borderRadius: 'var(--radius)' }} />
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="reminders-page">
+    <div className="reminders-page page-enter">
       <div className="page-header">
         <div className="header-left">
           <h1><FiCalendar /> Reminders & Tasks</h1>
           <p>Manage daily operations and scheduled tasks</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+        <button className="btn-primary" onClick={() => setShowForm(!showForm)} aria-label={showForm ? 'Close form' : 'Add new reminder'}>
           <FiPlus /> Add New Reminder
         </button>
       </div>

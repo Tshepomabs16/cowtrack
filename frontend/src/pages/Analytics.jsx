@@ -98,7 +98,7 @@ const Analytics = () => {
   ];
 
   return (
-    <div className="analytics-page">
+    <div className="analytics-page page-enter">
       <div className="page-header">
         <h1>Farm Analytics</h1>
         <p>Comprehensive insights and performance metrics</p>
@@ -118,7 +118,7 @@ const Analytics = () => {
 
       <div className="kpi-cards">
         {kpis.map((kpi, index) => (
-          <div key={index} className="kpi-card">
+          <div key={index} className="kpi-card" data-stagger style={{ '--stagger-i': index }}>
             <div className="kpi-icon" style={{ backgroundColor: kpi.color }}>
               {kpi.icon}
             </div>

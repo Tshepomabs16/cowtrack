@@ -119,9 +119,22 @@ const CowDetail = () => {
 
   if (loading) {
     return (
-      <div className="cow-detail-loading">
-        <div className="loading-spinner"></div>
-        <p>Loading cow details...</p>
+      <div className="cow-detail-page page-enter">
+        <div className="cow-detail-header">
+          <div className="skeleton" style={{ width: 140, height: 36, borderRadius: 8 }} />
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', marginTop: 20 }}>
+            <div className="skeleton" style={{ width: 80, height: 80, borderRadius: '50%' }} />
+            <div>
+              <div className="skeleton" style={{ width: 180, height: 24, marginBottom: 8 }} />
+              <div className="skeleton" style={{ width: 100, height: 14 }} />
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 24 }}>
+          {[1, 2, 3].map(i => (
+            <div key={i} className="skeleton" style={{ height: 200, borderRadius: 'var(--radius)' }} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -139,10 +152,10 @@ const CowDetail = () => {
   }
 
   return (
-    <div className="cow-detail-page">
+    <div className="cow-detail-page page-enter">
       {/* Header Section */}
       <div className="cow-detail-header">
-        <button onClick={() => navigate('/cows')} className="back-btn">
+        <button onClick={() => navigate('/cows')} className="back-btn" aria-label="Back to cattle list">
           <FiArrowLeft /> Back to Cattle
         </button>
 
@@ -156,16 +169,16 @@ const CowDetail = () => {
           </div>
 
           <div className="header-actions">
-            <button className="action-btn">
+            <button className="action-btn" aria-label="Edit cow">
               <FiEdit /> Edit
             </button>
-            <button className="action-btn">
+            <button className="action-btn" aria-label="Print cow details">
               <FiPrinter /> Print
             </button>
-            <button className="action-btn">
+            <button className="action-btn" aria-label="Export cow data">
               <FiDownload /> Export
             </button>
-            <button className="action-btn">
+            <button className="action-btn" aria-label="Share cow profile">
               <FiShare2 /> Share
             </button>
           </div>
