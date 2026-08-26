@@ -783,3 +783,48 @@
     width: 100%;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Remaining Settings containers
+--------------------------------------------------------------------------- */
+
+/* Create React App bundles every stylesheet globally, so .nav-label from
+   Sidebar.css was landing on these tabs by accident. Stated explicitly here so
+   the tabs do not depend on another component's rules. */
+.settings-nav .nav-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: inherit;
+}
+
+.password-form,
+.time-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (min-width: 620px) {
+  /* Quiet-hours start and end read better side by side. */
+  .time-settings {
+    flex-direction: row;
+    gap: 16px;
+  }
+
+  .time-settings .form-group {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.storage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* The preview should actually look denser or airier, otherwise the three
+   options are indistinguishable beyond the bar widths. */
+.density-preview.compact { gap: 2px; }
+.density-preview.comfortable { gap: 4px; }
+.density-preview.spacious { gap: 7px; }

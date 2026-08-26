@@ -834,3 +834,30 @@
     justify-content: center;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Alerts table columns
+
+   The cells carry column classes so each gets a sensible share of the width and
+   the volatile ones can wrap or truncate rather than shoving the table wide.
+--------------------------------------------------------------------------- */
+.type-column     { width: 1%; white-space: nowrap; }
+.severity-column { width: 1%; white-space: nowrap; }
+.status-column   { width: 1%; white-space: nowrap; }
+.time-column     { width: 1%; white-space: nowrap; color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; }
+.cow-column      { width: 14%; white-space: nowrap; font-weight: 600; }
+.actions-column  { width: 1%; white-space: nowrap; text-align: right; }
+
+/* The one column that should absorb the remaining space. */
+.details-column {
+  width: auto;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 12.5px;
+}
+
+@media (max-width: 860px) {
+  /* Least important columns go first when space runs out. */
+  .time-column,
+  .type-column { display: none; }
+}

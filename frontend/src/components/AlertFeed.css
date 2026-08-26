@@ -72,3 +72,11 @@
   text-transform: uppercase;
   letter-spacing: .06em;
 }
+
+/* Shown when there are no alerts, or the feed could not be loaded. */
+.alert-empty {
+  padding: 20px 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}

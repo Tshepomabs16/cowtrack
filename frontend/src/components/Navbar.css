@@ -608,3 +608,15 @@
     right: -40px;
   }
 }
+
+/* The bell carries a badge, so it needs to be a positioning context. */
+.notification-btn {
+  position: relative;
+}
+
+/* Label beside an icon in the user dropdown. */
+.menu-item-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: inherit;
+}

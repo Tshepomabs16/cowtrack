@@ -87,52 +87,6 @@
   color: #60a5fa;
 }
 
-.demo-accounts {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 25px;
-  margin-top: 40px;
-}
-
-.demo-accounts h3 {
-  margin: 0 0 15px 0;
-  color: white;
-}
-
-.demo-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.demo-btn {
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.demo-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.demo-btn.admin {
-  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-}
-
-.demo-btn.manager {
-  background: linear-gradient(135deg, #10b981, #059669);
-}
-
-.demo-btn.worker {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-}
-
 /* Benefits List for Register */
 .benefits-list {
   display: flex;
@@ -421,7 +375,9 @@
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
+
   100% { transform: rotate(360deg); }
+
 }
 
 /* Divider */
@@ -638,6 +594,7 @@
     flex-direction: column;
     gap: 25px;
   }
+
 }
 
 @media (max-width: 768px) {
@@ -666,6 +623,7 @@
   .action-buttons {
     flex-direction: column;
   }
+
 }
 
 @media (max-width: 480px) {
@@ -677,7 +635,4 @@
     font-size: 1.5rem;
   }
 
-  .demo-buttons {
-    flex-direction: column;
-  }
 }

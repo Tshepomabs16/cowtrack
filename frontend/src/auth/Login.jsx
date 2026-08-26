@@ -62,22 +62,6 @@ const Login = () => {
     }
   };
 
-  const handleDemoLogin = (role) => {
-    const demoCredentials = {
-      admin: { email: 'admin@cowtrack.com', password: 'admin123' },
-      manager: { email: 'manager@cowtrack.com', password: 'manager123' },
-      worker: { email: 'worker@cowtrack.com', password: 'worker123' }
-    };
-
-    setEmail(demoCredentials[role].email);
-    setPassword(demoCredentials[role].password);
-
-    // Auto submit after setting values
-    setTimeout(() => {
-      handleSubmit({ preventDefault: () => {} });
-    }, 100);
-  };
-
   return (
     <div className="auth-page">
       <div className="auth-container">
@@ -108,29 +92,6 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="demo-accounts">
-              <h3>Demo Accounts:</h3>
-              <div className="demo-buttons">
-                <button
-                  className="demo-btn admin"
-                  onClick={() => handleDemoLogin('admin')}
-                >
-                  Admin Login
-                </button>
-                <button
-                  className="demo-btn manager"
-                  onClick={() => handleDemoLogin('manager')}
-                >
-                  Manager Login
-                </button>
-                <button
-                  className="demo-btn worker"
-                  onClick={() => handleDemoLogin('worker')}
-                >
-                  Worker Login
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 

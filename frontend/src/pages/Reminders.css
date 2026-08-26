@@ -474,3 +474,23 @@
     gap: 5px;
   }
 }
+
+/* Metadata chips under a reminder: which animal it concerns, and its timing. */
+.reminder-meta .assigned {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-dim);
+  border: 1px solid var(--primary-border);
+  color: var(--primary);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.reminder-meta .time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}

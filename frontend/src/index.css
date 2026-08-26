@@ -324,3 +324,55 @@ code {
   background: var(--accent-dim);
   border-color: color-mix(in srgb, var(--accent) 34%, transparent);
 }
+
+/* ---------------------------------------------------------------------------
+   Shared primitives
+
+   These appear on several pages (empty states on Analytics/CowDetail/Reminders,
+   the inline form error on Reminders, the small table action button on
+   CowDetail). Defining them once here keeps them consistent and stops each page
+   re-inventing them.
+--------------------------------------------------------------------------- */
+
+/* Placeholder row inside a table or list that has no data yet. */
+.empty-row {
+  padding: 22px 16px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+
+/* Inline form-level error, distinct from per-field validation. */
+.form-error {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--danger-dim);
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, transparent);
+  color: var(--danger);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* Compact action button used inside table rows. */
+.btn-small {
+  padding: 5px 11px;
+  margin-right: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease);
+}
+
+.btn-small:hover {
+  background: var(--primary-dim);
+  border-color: var(--primary-border);
+  color: var(--primary);
+}
+
+.btn-small:last-child { margin-right: 0; }

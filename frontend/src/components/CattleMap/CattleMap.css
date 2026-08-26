@@ -60,3 +60,23 @@
 .remove-btn:hover {
   background: #cc0000;
 }
+/* Wrapper around the Leaflet canvas. Establishes the stacking context the
+   floating controls position against, and clips the map to the card radius. */
+.cattle-map-container {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  min-height: 300px;
+}
+
+.map-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  /* Above Leaflet's own panes, which sit at 400-700. */
+  z-index: 800;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
