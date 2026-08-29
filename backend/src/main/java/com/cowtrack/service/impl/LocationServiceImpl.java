@@ -180,25 +180,18 @@ public class LocationServiceImpl implements LocationService {
         return totalDistance;
     }
 
+    /**
+     * Checks that genuinely belong on the arrival of a position.
+     *
+     * <p>No-signal detection used to live here and could never fire: it asked
+     * whether any location had arrived recently, having just been called because
+     * one did. Absence of a signal cannot be observed from the signal, so it now
+     * runs on a timer in
+     * {@link com.cowtrack.service.CollarMonitoringService}.
+     */
     private void checkOtherAlerts(Cow cow) {
         Long farmId = farmContext.getCurrentFarmId();
-        LocalDateTime twentyFourHoursAgo = LocalDateTime.now().minusHours(24);
         LocalDateTime now = LocalDateTime.now();
-
-        List<LocationRecord> recentLocations = locationRecordRepository.findByFarmIdAndCowIdAndTimeRange(
-                farmId, cow.getCowId(), twentyFourHoursAgo, now);
-
-        if (recentLocations.isEmpty()) {
-            long hoursSinceLastSignal = 24;
-            LocationRecord lastLocation = locationRecordRepository.findLatestByFarmIdAndCowId(farmId, cow.getCowId()).orElse(null);
-            if (lastLocation != null) {
-                hoursSinceLastSignal = java.time.Duration.between(lastLocation.getRecordedAt(), now).toHours();
-            }
-
-            if (hoursSinceLastSignal >= 24) {
-                alertService.createNoSignalAlert(cow.getCowId(), hoursSinceLastSignal);
-            }
-        }
 
         int currentHour = LocalDateTime.now().getHour();
         if (currentHour >= 22 || currentHour < 5) {

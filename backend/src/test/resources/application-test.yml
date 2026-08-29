@@ -16,6 +16,14 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
 
 cowtrack:
+  monitoring:
+    no-signal:
+      enabled: true
+      threshold: 24h
+      # Pinned so the scheduling assertion checks a known value. The sweep is
+      # invoked directly in these tests; the cron only has to be registered.
+      cron: "0 0 * * * *"
+
   jwt:
     secret: test-secret-key-that-is-definitely-long-enough-32
     expiration-ms: 3600000

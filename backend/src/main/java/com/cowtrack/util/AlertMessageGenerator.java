@@ -18,10 +18,27 @@ public class AlertMessageGenerator {
     }
 
     public String generateNoSignalMessage(Cow cow, long hours) {
-        return String.format("Cow '%s' (Tag: %s) has had no GPS signal for %d hours",
+        return String.format("Cow '%s' (Tag: %s) has had no GPS signal for %s",
                 cow.getName(),
                 cow.getTagId(),
-                hours);
+                describeSilence(hours));
+    }
+
+    /**
+     * The silence threshold is configurable and may be shorter than an hour for
+     * frequently-reporting collars, in which case whole hours truncate to zero
+     * and the alert reads "no GPS signal for 0 hours". Days are spelled out too,
+     * since "for 73 hours" is harder to act on than "for 3 days".
+     */
+    private String describeSilence(long hours) {
+        if (hours < 1) {
+            return "under an hour";
+        }
+        if (hours < 48) {
+            return hours + (hours == 1 ? " hour" : " hours");
+        }
+        long days = hours / 24;
+        return days + " days";
     }
 
     public String generateNightMovementMessage(Cow cow) {

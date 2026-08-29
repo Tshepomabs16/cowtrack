@@ -137,9 +137,25 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public void createNoSignalAlert(Long cowId, long hoursWithoutSignal) {
-        Long farmId = farmContext.getCurrentFarmId();
+        createNoSignalAlert(farmContext.getCurrentFarmId(), cowId, hoursWithoutSignal);
+    }
+
+    @Override
+    public boolean createNoSignalAlert(Long farmId, Long cowId, long hoursWithoutSignal) {
         Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
+
+        // One open alert per silent animal. The sweep runs repeatedly while a
+        // collar stays quiet, so without this every pass would raise another
+        // alert for the same unchanged condition until the feed was unusable.
+        boolean alreadyOpen = alertRepository
+                .findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cowId).stream()
+                .anyMatch(open -> open.getAlertType() == Alert.AlertType.NO_SIGNAL);
+
+        if (alreadyOpen) {
+            log.debug("No-signal alert already open for cow {}; not raising another", cow.getTagId());
+            return false;
+        }
 
         Alert alert = new Alert();
         alert.setCow(cow);
@@ -152,6 +168,7 @@ public class AlertServiceImpl implements AlertService {
 
         alertRepository.save(alert);
         log.warn("Created no signal alert for cow {}: {} hours without signal", cow.getTagId(), hoursWithoutSignal);
+        return true;
     }
 
     private AlertResponse toResponse(Alert alert) {

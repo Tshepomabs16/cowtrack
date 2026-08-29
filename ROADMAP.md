@@ -110,13 +110,18 @@ The alerting is half-wired, in a way that is easy to miss:
 
 - Geofence breach detection **does** work — `LocationServiceImpl.recordLocation`
   calls `checkGeofenceViolations` on every new position. Good design: event-driven.
-- No-signal and night-movement detection **can never fire**. Both live in
-  `checkOtherAlerts`, a private method in `LocationServiceImpl` that nothing calls.
-  It is dead code.
+- **No-signal detection is now a scheduled sweep** (`CollarMonitoringService`,
+  hourly by default). It was previously attempted inside `checkOtherAlerts`, on
+  the arrival of a position, where it asked whether any position had arrived
+  recently — having just been called because one had. It could not fire.
 
-There is a logical trap in that second one worth naming: no-signal detection cannot
-be triggered by a location arriving, because a location arriving *is* a signal. It
-has to be a scheduled sweep over animals that have gone quiet.
+  The trap is worth naming: absence of a signal cannot be observed from the
+  signal. Detecting silence requires a timer.
+
+- **Night-movement detection still only writes to the log.** It sits in
+  `checkOtherAlerts`, is correctly event-driven, and computes the distance moved
+  — but never raises an alert, so `NIGHT_MOVEMENT` remains an alert type nothing
+  produces.
 
 The one scheduled job that exists, `ReminderServiceImpl.checkAndGenerateReminders`,
 runs daily at 08:00 and only writes to the log. Its own comments say notifications
