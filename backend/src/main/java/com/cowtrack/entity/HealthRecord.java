@@ -19,6 +19,10 @@ public class HealthRecord {
     @Column(name = "health_id")
     private Long healthId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;

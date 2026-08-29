@@ -6,6 +6,7 @@ import com.cowtrack.service.RecordsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /** Recording and reading the production and financial data analytics aggregates. */
@@ -17,6 +18,7 @@ public class RecordsController extends BaseController {
     private final RecordsService recordsService;
 
     @PostMapping("/production")
+    @PreAuthorize("hasRole('FARMER') or hasRole('CARETAKER') or hasRole('ADMIN')")
     public ResponseEntity<?> recordProduction(@Valid @RequestBody ProductionRequest request) {
         return created(recordsService.recordProduction(request));
     }
@@ -27,6 +29,7 @@ public class RecordsController extends BaseController {
     }
 
     @PostMapping("/financials")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> recordFinancial(@Valid @RequestBody FinancialRequest request) {
         return created(recordsService.recordFinancial(request));
     }

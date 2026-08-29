@@ -17,10 +17,6 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
 
     List<ProductionRecord> findByRecordDateBetweenOrderByRecordDateAsc(LocalDate start, LocalDate end);
 
-    /**
-     * Daily totals across the herd. Returns rows of
-     * {@code [recordDate, totalMilkLitres, averageWeightKg]}.
-     */
     @Query("""
             SELECT p.recordDate, SUM(p.milkLitres), AVG(p.weightKg)
             FROM ProductionRecord p
@@ -31,10 +27,6 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
     List<Object[]> aggregateDailyTotals(@Param("start") LocalDate start,
                                         @Param("end") LocalDate end);
 
-    /**
-     * Per-animal production over a window, best first. Rows of
-     * {@code [cowId, cowName, totalMilk, avgMilk, weightGain]}.
-     */
     @Query("""
             SELECT p.cow.cowId, p.cow.name, SUM(p.milkLitres), AVG(p.milkLitres),
                    MAX(p.weightKg) - MIN(p.weightKg)
@@ -51,4 +43,39 @@ public interface ProductionRecordRepository extends JpaRepository<ProductionReco
             WHERE p.recordDate BETWEEN :start AND :end
             """)
     Double averageDailyMilk(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    List<ProductionRecord> findByFarmFarmIdOrderByRecordDateDesc(Long farmId);
+
+    @Query("""
+            SELECT p.recordDate, SUM(p.milkLitres), AVG(p.weightKg)
+            FROM ProductionRecord p
+            WHERE p.farm.farmId = :farmId AND p.recordDate BETWEEN :start AND :end
+            GROUP BY p.recordDate
+            ORDER BY p.recordDate
+            """)
+    List<Object[]> aggregateDailyTotalsByFarm(@Param("farmId") Long farmId,
+                                              @Param("start") LocalDate start,
+                                              @Param("end") LocalDate end);
+
+    long countByFarmFarmId(Long farmId);
+
+    @Query("""
+            SELECT p.cow.cowId, p.cow.name, SUM(p.milkLitres), AVG(p.milkLitres),
+                   MAX(p.weightKg) - MIN(p.weightKg)
+            FROM ProductionRecord p
+            WHERE p.farm.farmId = :farmId AND p.recordDate BETWEEN :start AND :end
+            GROUP BY p.cow.cowId, p.cow.name
+            ORDER BY SUM(p.milkLitres) DESC
+            """)
+    List<Object[]> aggregatePerCowByFarm(@Param("farmId") Long farmId,
+                                         @Param("start") LocalDate start,
+                                         @Param("end") LocalDate end);
+
+    @Query("""
+            SELECT AVG(p.milkLitres) FROM ProductionRecord p
+            WHERE p.farm.farmId = :farmId AND p.recordDate BETWEEN :start AND :end
+            """)
+    Double averageDailyMilkByFarm(@Param("farmId") Long farmId,
+                                  @Param("start") LocalDate start,
+                                  @Param("end") LocalDate end);
 }

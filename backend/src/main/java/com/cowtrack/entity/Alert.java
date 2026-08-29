@@ -18,6 +18,10 @@ public class Alert {
     @Column(name = "alert_id")
     private Long alertId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;

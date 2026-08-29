@@ -13,13 +13,6 @@ public interface FinancialRecordRepository extends JpaRepository<FinancialRecord
 
     List<FinancialRecord> findByUser_UserIdOrderByRecordDateDesc(Long userId);
 
-    /**
-     * Monthly revenue and cost for one user. Returns rows of
-     * {@code [year, month, totalRevenue, totalCost]}.
-     *
-     * <p>Uses YEAR/MONTH rather than date truncation so the query works on both
-     * MySQL and the H2 instance the tests run against.
-     */
     @Query("""
             SELECT YEAR(f.recordDate), MONTH(f.recordDate),
                    SUM(CASE WHEN f.entryType = :revenue THEN f.amount ELSE 0 END),
@@ -35,7 +28,6 @@ public interface FinancialRecordRepository extends JpaRepository<FinancialRecord
                                     @Param("revenue") FinancialRecord.EntryType revenue,
                                     @Param("cost") FinancialRecord.EntryType cost);
 
-    /** Cost totals per category. Rows of {@code [category, total]}. */
     @Query("""
             SELECT COALESCE(f.category, 'Uncategorised'), SUM(f.amount)
             FROM FinancialRecord f
@@ -58,4 +50,44 @@ public interface FinancialRecordRepository extends JpaRepository<FinancialRecord
                            @Param("type") FinancialRecord.EntryType type,
                            @Param("start") LocalDate start,
                            @Param("end") LocalDate end);
+
+    List<FinancialRecord> findByFarmFarmIdOrderByRecordDateDesc(Long farmId);
+
+    @Query("""
+            SELECT YEAR(f.recordDate), MONTH(f.recordDate),
+                   SUM(CASE WHEN f.entryType = :revenue THEN f.amount ELSE 0 END),
+                   SUM(CASE WHEN f.entryType = :cost THEN f.amount ELSE 0 END)
+            FROM FinancialRecord f
+            WHERE f.farm.farmId = :farmId AND f.recordDate BETWEEN :start AND :end
+            GROUP BY YEAR(f.recordDate), MONTH(f.recordDate)
+            ORDER BY YEAR(f.recordDate), MONTH(f.recordDate)
+            """)
+    List<Object[]> aggregateMonthlyByFarm(@Param("farmId") Long farmId,
+                                          @Param("start") LocalDate start,
+                                          @Param("end") LocalDate end,
+                                          @Param("revenue") FinancialRecord.EntryType revenue,
+                                          @Param("cost") FinancialRecord.EntryType cost);
+
+    @Query("""
+            SELECT COALESCE(SUM(f.amount), 0) FROM FinancialRecord f
+            WHERE f.farm.farmId = :farmId AND f.entryType = :type
+              AND f.recordDate BETWEEN :start AND :end
+            """)
+    BigDecimal totalByTypeAndFarm(@Param("farmId") Long farmId,
+                                   @Param("type") FinancialRecord.EntryType type,
+                                   @Param("start") LocalDate start,
+                                   @Param("end") LocalDate end);
+
+    @Query("""
+            SELECT COALESCE(f.category, 'Uncategorised'), SUM(f.amount)
+            FROM FinancialRecord f
+            WHERE f.farm.farmId = :farmId AND f.entryType = :type
+              AND f.recordDate BETWEEN :start AND :end
+            GROUP BY f.category
+            ORDER BY SUM(f.amount) DESC
+            """)
+    List<Object[]> aggregateByCategoryByFarm(@Param("farmId") Long farmId,
+                                              @Param("type") FinancialRecord.EntryType type,
+                                              @Param("start") LocalDate start,
+                                              @Param("end") LocalDate end);
 }

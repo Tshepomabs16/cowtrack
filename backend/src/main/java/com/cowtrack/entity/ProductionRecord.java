@@ -9,10 +9,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * A day's milk yield and weight for one animal. Aggregated into the productivity
- * trends shown on the analytics page.
- */
 @Entity
 @Table(
         name = "production_records",
@@ -28,6 +24,10 @@ public class ProductionRecord {
     @Column(name = "production_id")
     private Long productionId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;
@@ -35,11 +35,9 @@ public class ProductionRecord {
     @Column(name = "record_date", nullable = false)
     private LocalDate recordDate;
 
-    /** Milk yield in litres for the day. */
     @Column(name = "milk_litres", precision = 8, scale = 2)
     private BigDecimal milkLitres;
 
-    /** Recorded weight in kilograms. */
     @Column(name = "weight_kg", precision = 8, scale = 2)
     private BigDecimal weightKg;
 

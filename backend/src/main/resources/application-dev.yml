@@ -12,16 +12,27 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # Flyway applies the same migrations the production database runs.
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.H2Dialect
-    show-sql: false
+    # Verbose SQL so a developer can see what a request made Hibernate do.
+    show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+        format_sql: true
   h2:
     console:
       enabled: true
       path: /h2-console
+
+# The default profile is deliberately quiet; development is where extra logging
+# earns its keep, so it is turned back on here.
+logging:
+  level:
+    com.cowtrack: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 cowtrack:
   seed:

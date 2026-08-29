@@ -7,7 +7,8 @@ spring:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      # Flyway applies the same migrations the production database runs.
+      ddl-auto: validate
     database-platform: org.hibernate.dialect.H2Dialect
     show-sql: false
     properties:

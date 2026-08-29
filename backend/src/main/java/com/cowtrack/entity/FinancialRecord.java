@@ -9,10 +9,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * A single revenue or cost line for the farm, aggregated by month into the
- * revenue-versus-cost chart on the analytics page.
- */
 @Entity
 @Table(name = "financial_records")
 @Data
@@ -25,12 +21,14 @@ public class FinancialRecord {
     @Column(name = "financial_id")
     private Long financialId;
 
-    /** Owning user, so one farm's figures never leak into another's totals. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    /** Optional link to the animal a line item relates to. */
     @ManyToOne
     @JoinColumn(name = "cow_id")
     private Cow cow;
@@ -42,7 +40,6 @@ public class FinancialRecord {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
 
-    /** Free-form grouping, e.g. "Milk sales", "Feed", "Veterinary". */
     @Column
     private String category;
 

@@ -1,9 +1,11 @@
 package com.cowtrack.service.impl;
 
 import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.entity.FinancialRecord;
 import com.cowtrack.entity.User;
 import com.cowtrack.repository.*;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.AnalyticsService;
 import com.cowtrack.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -30,29 +32,31 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final FinancialRecordRepository financialRepository;
     private final HealthMetricRepository healthMetricRepository;
     private final UserService userService;
+    private final FarmContext farmContext;
+    private final FarmRepository farmRepository;
 
     @Override
     public Map<String, Object> getDashboardStats() {
         LocalDate today = LocalDate.now();
         LocalDate monthAgo = today.minusDays(30);
-        User user = userService.getAuthenticatedUser();
+        Long farmId = farmContext.getCurrentFarmId();
 
-        long totalCows = cowRepository.count();
-        Double avgMilk = productionRepository.averageDailyMilk(monthAgo, today);
+        long totalCows = cowRepository.countByFarmFarmId(farmId);
+        Double avgMilk = productionRepository.averageDailyMilkByFarm(farmId, monthAgo, today);
 
-        BigDecimal revenue = financialRepository.totalByType(
-                user.getUserId(), FinancialRecord.EntryType.REVENUE, monthAgo, today);
-        BigDecimal cost = financialRepository.totalByType(
-                user.getUserId(), FinancialRecord.EntryType.COST, monthAgo, today);
+        BigDecimal revenue = financialRepository.totalByTypeAndFarm(
+                farmId, FinancialRecord.EntryType.REVENUE, monthAgo, today);
+        BigDecimal cost = financialRepository.totalByTypeAndFarm(
+                farmId, FinancialRecord.EntryType.COST, monthAgo, today);
 
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("totalCows", totalCows);
-        stats.put("activeAlerts", alertRepository.countByIsResolvedFalse());
+        stats.put("activeAlerts", alertRepository.countByFarmFarmIdAndIsResolvedFalse(farmId));
         stats.put("averageMilkPerDay", round(avgMilk));
         stats.put("totalRevenue", revenue);
         stats.put("totalCost", cost);
         stats.put("netProfit", revenue.subtract(cost));
-        stats.put("breedDistribution", breedDistribution());
+        stats.put("breedDistribution", breedDistribution(farmId));
         return stats;
     }
 
@@ -60,9 +64,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> getProductionTrends(String range) {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(daysFor(range));
+        Long farmId = farmContext.getCurrentFarmId();
 
         List<Map<String, Object>> series = productionRepository
-                .aggregateDailyTotals(start, end).stream()
+                .aggregateDailyTotalsByFarm(farmId, start, end).stream()
                 .map(row -> {
                     Map<String, Object> point = new LinkedHashMap<>();
                     LocalDate date = (LocalDate) row[0];
@@ -76,7 +81,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> topProducers = productionRepository
-                .aggregatePerCow(start, end).stream()
+                .aggregatePerCowByFarm(farmId, start, end).stream()
                 .map(row -> {
                     Map<String, Object> entry = new LinkedHashMap<>();
                     entry.put("cowId", row[0]);
@@ -91,7 +96,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("range", range);
         result.put("series", series);
-        result.put("breedDistribution", breedDistribution());
+        result.put("breedDistribution", breedDistribution(farmId));
         result.put("topProducers", topProducers);
         return result;
     }
@@ -100,9 +105,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> getHealthTrends(String range) {
         LocalDateTime end = LocalDateTime.now();
         LocalDateTime start = end.minusDays(daysFor(range));
+        Long farmId = farmContext.getCurrentFarmId();
 
         List<Map<String, Object>> series = healthMetricRepository
-                .aggregateDailyAverages(start, end).stream()
+                .aggregateDailyAveragesByFarm(farmId, start, end).stream()
                 .map(row -> {
                     Map<String, Object> point = new LinkedHashMap<>();
                     point.put("date", String.valueOf(row[0]));
@@ -123,10 +129,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     public Map<String, Object> getFinancials(String range) {
         LocalDate end = LocalDate.now();
         LocalDate start = end.minusDays(daysFor(range));
-        User user = userService.getAuthenticatedUser();
+        Long farmId = farmContext.getCurrentFarmId();
 
         List<Map<String, Object>> series = financialRepository
-                .aggregateMonthly(user.getUserId(), start, end,
+                .aggregateMonthlyByFarm(farmId, start, end,
                         FinancialRecord.EntryType.REVENUE, FinancialRecord.EntryType.COST)
                 .stream()
                 .map(row -> {
@@ -141,10 +147,10 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 })
                 .collect(Collectors.toList());
 
-        BigDecimal revenue = financialRepository.totalByType(
-                user.getUserId(), FinancialRecord.EntryType.REVENUE, start, end);
-        BigDecimal cost = financialRepository.totalByType(
-                user.getUserId(), FinancialRecord.EntryType.COST, start, end);
+        BigDecimal revenue = financialRepository.totalByTypeAndFarm(
+                farmId, FinancialRecord.EntryType.REVENUE, start, end);
+        BigDecimal cost = financialRepository.totalByTypeAndFarm(
+                farmId, FinancialRecord.EntryType.COST, start, end);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("range", range);
@@ -152,15 +158,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         result.put("totalRevenue", revenue);
         result.put("totalCost", cost);
         result.put("netProfit", revenue.subtract(cost));
-        result.put("costBreakdown", costBreakdown(user.getUserId(), start, end, cost));
+        result.put("costBreakdown", costBreakdown(farmId, start, end, cost));
         return result;
     }
 
     /** Cost per category with each category's share of the total. */
-    private List<Map<String, Object>> costBreakdown(Long userId, LocalDate start,
+    private List<Map<String, Object>> costBreakdown(Long farmId, LocalDate start,
                                                     LocalDate end, BigDecimal totalCost) {
         return financialRepository
-                .aggregateByCategory(userId, FinancialRecord.EntryType.COST, start, end)
+                .aggregateByCategoryByFarm(farmId, FinancialRecord.EntryType.COST, start, end)
                 .stream()
                 .map(row -> {
                     BigDecimal amount = (BigDecimal) row[1];
@@ -180,10 +186,11 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Override
     public List<Map<String, Object>> getPredictions() {
         LocalDate today = LocalDate.now();
+        Long farmId = farmContext.getCurrentFarmId();
 
         // Compare the last 30 days with the 30 before it and extrapolate the delta.
-        Double recent = productionRepository.averageDailyMilk(today.minusDays(30), today);
-        Double previous = productionRepository.averageDailyMilk(
+        Double recent = productionRepository.averageDailyMilkByFarm(farmId, today.minusDays(30), today);
+        Double previous = productionRepository.averageDailyMilkByFarm(farmId,
                 today.minusDays(60), today.minusDays(31));
 
         List<Map<String, Object>> predictions = new ArrayList<>();
@@ -193,7 +200,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 projectNext(recent, previous),
                 describeTrend(recent, previous)));
 
-        long activeAlerts = alertRepository.countByIsResolvedFalse();
+        long activeAlerts = alertRepository.countByFarmFarmIdAndIsResolvedFalse(farmId);
         predictions.add(prediction(
                 "Open alerts",
                 activeAlerts,
@@ -204,8 +211,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     /** Herd counts per breed, largest first, for the distribution pie chart. */
-    private List<Map<String, Object>> breedDistribution() {
-        Map<String, Long> counts = cowRepository.findAll().stream()
+    private List<Map<String, Object>> breedDistribution(Long farmId) {
+        Map<String, Long> counts = cowRepository.findByFarmFarmId(farmId).stream()
                 .map(Cow::getBreed)
                 .map(breed -> breed == null || breed.isBlank() ? "Unspecified" : breed)
                 .collect(Collectors.groupingBy(breed -> breed, Collectors.counting()));

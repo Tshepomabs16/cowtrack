@@ -7,6 +7,7 @@ import com.cowtrack.service.CowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class CowController extends BaseController {
     private final CowService cowService;
 
     @PostMapping
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> createCow(@Valid @RequestBody CowRequest request) {
         CowResponse cow = cowService.createCow(request);
         return created(cow);
@@ -55,6 +57,7 @@ public class CowController extends BaseController {
     }
 
     @PutMapping("/{cowId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('CARETAKER') or hasRole('ADMIN')")
     public ResponseEntity<?> updateCow(
             @PathVariable Long cowId,
             @Valid @RequestBody CowRequest request) {
@@ -63,12 +66,14 @@ public class CowController extends BaseController {
     }
 
     @DeleteMapping("/{cowId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> deleteCow(@PathVariable Long cowId) {
         cowService.deleteCow(cowId);
         return success("Cow deleted successfully", null);
     }
 
     @PostMapping("/{cowId}/assign-caretaker/{caretakerId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> assignCaretaker(
             @PathVariable Long cowId,
             @PathVariable Long caretakerId) {
@@ -78,17 +83,12 @@ public class CowController extends BaseController {
 
     @GetMapping("/{cowId}/lineage")
     public ResponseEntity<?> getCowLineage(@PathVariable Long cowId) {
-        // This would return mother, father, and children
-        // For now, return basic info
         CowResponse cow = cowService.getCowById(cowId);
         return success("Lineage endpoint - implement lineage logic", cow);
     }
 
-    /**
-     * Partial update of many animals at once. Declared before the {@code /{cowId}}
-     * mapping would otherwise be considered, since "bulk" is not a numeric id.
-     */
     @PutMapping("/bulk")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> bulkUpdate(
             @Valid @RequestBody List<BulkCowUpdateRequest> updates) {
         List<CowResponse> cows = cowService.bulkUpdate(updates);

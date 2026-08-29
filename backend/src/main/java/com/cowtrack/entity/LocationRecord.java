@@ -19,6 +19,10 @@ public class LocationRecord {
     @Column(name = "location_id")
     private Long locationId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;

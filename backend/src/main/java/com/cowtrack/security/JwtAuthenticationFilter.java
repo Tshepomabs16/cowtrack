@@ -16,14 +16,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * Reads the {@code Authorization: Bearer <token>} header and, when the token is
- * valid, populates the security context for the rest of the request.
- *
- * <p>An absent or invalid token is not an error here: the filter simply leaves the
- * context empty and lets the authorisation rules in
- * {@link com.cowtrack.config.SecurityConfig} decide whether to reject.
- */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -45,16 +37,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        String email = jwtService.extractEmail(header.substring(BEARER_PREFIX.length()));
+        String token = header.substring(BEARER_PREFIX.length());
+        String email = jwtService.extractEmail(token);
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails, null, userDetails.getAuthorities());
+                        userDetails, token, userDetails.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (UsernameNotFoundException e) {
-                // Token signed for a user that no longer exists - stay unauthenticated.
                 SecurityContextHolder.clearContext();
             }
         }

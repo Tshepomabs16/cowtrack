@@ -18,10 +18,6 @@ public interface HealthMetricRepository extends JpaRepository<HealthMetric, Long
     List<HealthMetric> findByRecordedAtBetweenOrderByRecordedAtAsc(
             LocalDateTime start, LocalDateTime end);
 
-    /**
-     * Daily herd averages. Returns rows of
-     * {@code [date, avgTemperature, avgHeartRate, avgActivityLevel]}.
-     */
     @Query("""
             SELECT CAST(m.recordedAt AS date), AVG(m.temperature),
                    AVG(m.heartRate), AVG(m.activityLevel)
@@ -32,4 +28,20 @@ public interface HealthMetricRepository extends JpaRepository<HealthMetric, Long
             """)
     List<Object[]> aggregateDailyAverages(@Param("start") LocalDateTime start,
                                           @Param("end") LocalDateTime end);
+
+    List<HealthMetric> findByFarmFarmIdOrderByRecordedAtDesc(Long farmId);
+
+    Optional<HealthMetric> findFirstByFarmFarmIdAndCowCowIdOrderByRecordedAtDesc(Long farmId, Long cowId);
+
+    @Query("""
+            SELECT CAST(m.recordedAt AS date), AVG(m.temperature),
+                   AVG(m.heartRate), AVG(m.activityLevel)
+            FROM HealthMetric m
+            WHERE m.farm.farmId = :farmId AND m.recordedAt BETWEEN :start AND :end
+            GROUP BY CAST(m.recordedAt AS date)
+            ORDER BY CAST(m.recordedAt AS date)
+            """)
+    List<Object[]> aggregateDailyAveragesByFarm(@Param("farmId") Long farmId,
+                                                @Param("start") LocalDateTime start,
+                                                @Param("end") LocalDateTime end);
 }

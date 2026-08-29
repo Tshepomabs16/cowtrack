@@ -5,13 +5,16 @@ import com.cowtrack.dto.request.VaccinationRequest;
 import com.cowtrack.dto.response.HealthMetricResponse;
 import com.cowtrack.dto.response.VaccinationResponse;
 import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.entity.HealthMetric;
 import com.cowtrack.entity.Vaccination;
 import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.repository.CowRepository;
+import com.cowtrack.repository.FarmRepository;
 import com.cowtrack.repository.HealthMetricRepository;
 import com.cowtrack.repository.HealthRecordRepository;
 import com.cowtrack.repository.VaccinationRepository;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.FarmHealthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,13 +34,16 @@ public class FarmHealthServiceImpl implements FarmHealthService {
     private final VaccinationRepository vaccinationRepository;
     private final HealthRecordRepository healthRecordRepository;
     private final CowRepository cowRepository;
+    private final FarmContext farmContext;
+    private final FarmRepository farmRepository;
 
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getHerdMetrics(String range) {
-        List<HealthMetricResponse> latestPerCow = cowRepository.findAll().stream()
+        Long farmId = farmContext.getCurrentFarmId();
+        List<HealthMetricResponse> latestPerCow = cowRepository.findByFarmFarmId(farmId).stream()
                 .map(cow -> healthMetricRepository
-                        .findFirstByCow_CowIdOrderByRecordedAtDesc(cow.getCowId())
+                        .findFirstByFarmFarmIdAndCowCowIdOrderByRecordedAtDesc(farmId, cow.getCowId())
                         .orElse(null))
                 .filter(Objects::nonNull)
                 .map(this::toResponse)
@@ -73,7 +79,10 @@ public class FarmHealthServiceImpl implements FarmHealthService {
 
     @Override
     public HealthMetricResponse recordMetric(HealthMetricRequest request) {
+        Farm farm = farmRepository.findById(farmContext.getCurrentFarmId())
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found"));
         HealthMetric metric = new HealthMetric();
+        metric.setFarm(farm);
         metric.setCow(requireCow(request.getCowId()));
         metric.setTemperature(request.getTemperature());
         metric.setHeartRate(request.getHeartRate());
@@ -88,7 +97,8 @@ public class FarmHealthServiceImpl implements FarmHealthService {
     @Override
     @Transactional(readOnly = true)
     public List<VaccinationResponse> getVaccinations(String status) {
-        List<Vaccination> vaccinations = vaccinationRepository.findAllByOrderByNextDueDateAsc();
+        Long farmId = farmContext.getCurrentFarmId();
+        List<Vaccination> vaccinations = vaccinationRepository.findByFarmFarmIdOrderByAdministeredDateDesc(farmId);
 
         if (status != null && !status.isBlank()) {
             Vaccination.Status wanted = Vaccination.Status.valueOf(status.toUpperCase());
@@ -102,7 +112,10 @@ public class FarmHealthServiceImpl implements FarmHealthService {
 
     @Override
     public VaccinationResponse scheduleVaccination(VaccinationRequest request) {
+        Farm farm = farmRepository.findById(farmContext.getCurrentFarmId())
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found"));
         Vaccination vaccination = new Vaccination();
+        vaccination.setFarm(farm);
         vaccination.setCow(requireCow(request.getCowId()));
         vaccination.setVaccineName(request.getVaccineName());
         vaccination.setAdministeredDate(request.getAdministeredDate());
@@ -116,25 +129,27 @@ public class FarmHealthServiceImpl implements FarmHealthService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getReports(String range) {
+        Long farmId = farmContext.getCurrentFarmId();
         LocalDate today = LocalDate.now();
 
         List<Vaccination> overdue = vaccinationRepository
-                .findByNextDueDateBeforeOrderByNextDueDateAsc(today);
+                .findByFarmFarmIdAndNextDueDateBeforeOrderByNextDueDateAsc(farmId, today);
 
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("range", range);
-        report.put("totalHealthRecords", healthRecordRepository.count());
-        report.put("totalVaccinations", vaccinationRepository.count());
+        report.put("totalHealthRecords", healthRecordRepository.countByFarmFarmId(farmId));
+        report.put("totalVaccinations", vaccinationRepository.findByFarmFarmIdOrderByAdministeredDateDesc(farmId).size());
         report.put("overdueVaccinations",
                 overdue.stream().map(this::toResponse).collect(Collectors.toList()));
         report.put("upcomingVaccinations",
-                vaccinationRepository.findByAdministeredDateIsNullOrderByNextDueDateAsc()
+                vaccinationRepository.findByFarmFarmIdAndAdministeredDateIsNullOrderByNextDueDateAsc(farmId)
                         .stream().map(this::toResponse).collect(Collectors.toList()));
         return report;
     }
 
     private Cow requireCow(Long cowId) {
-        return cowRepository.findById(cowId)
+        Long farmId = farmContext.getCurrentFarmId();
+        return cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
     }
 

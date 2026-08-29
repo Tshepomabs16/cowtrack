@@ -15,4 +15,10 @@ public interface VaccinationRepository extends JpaRepository<Vaccination, Long> 
     List<Vaccination> findByNextDueDateBeforeOrderByNextDueDateAsc(LocalDate date);
 
     List<Vaccination> findAllByOrderByNextDueDateAsc();
+
+    List<Vaccination> findByFarmFarmIdOrderByAdministeredDateDesc(Long farmId);
+
+    List<Vaccination> findByFarmFarmIdAndAdministeredDateIsNullOrderByNextDueDateAsc(Long farmId);
+
+    List<Vaccination> findByFarmFarmIdAndNextDueDateBeforeOrderByNextDueDateAsc(Long farmId, LocalDate date);
 }

@@ -8,12 +8,6 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-/**
- * A vaccination administered to an animal, or scheduled for it.
- *
- * <p>Kept separate from {@link HealthRecord}, which records diagnosis and treatment
- * of illness; a vaccination is preventative and has a recurring due date.
- */
 @Entity
 @Table(name = "vaccinations")
 @Data
@@ -26,6 +20,10 @@ public class Vaccination {
     @Column(name = "vaccination_id")
     private Long vaccinationId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;
@@ -33,7 +31,6 @@ public class Vaccination {
     @Column(name = "vaccine_name", nullable = false)
     private String vaccineName;
 
-    /** Null until the dose is actually given, which is how SCHEDULED is detected. */
     @Column(name = "administered_date")
     private LocalDate administeredDate;
 
@@ -56,7 +53,6 @@ public class Vaccination {
         }
     }
 
-    /** Derived rather than stored, so it cannot drift out of step with the dates. */
     @Transient
     public Status getStatus() {
         if (administeredDate == null) {

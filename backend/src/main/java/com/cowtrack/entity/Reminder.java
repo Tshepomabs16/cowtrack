@@ -19,6 +19,10 @@ public class Reminder {
     @Column(name = "reminder_id")
     private Long reminderId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @ManyToOne
     @JoinColumn(name = "cow_id", nullable = false)
     private Cow cow;

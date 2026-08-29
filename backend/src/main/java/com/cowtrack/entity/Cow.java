@@ -19,6 +19,10 @@ public class Cow {
     @Column(name = "cow_id")
     private Long cowId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @Column(name = "tag_id", nullable = false, unique = true)
     private String tagId;
 
@@ -28,21 +32,17 @@ public class Cow {
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
-    /** Breed name, e.g. Holstein. Drives the breed distribution chart. */
     @Column
     private String breed;
 
-    // Mother relationship (self-referencing)
     @ManyToOne
     @JoinColumn(name = "mother_id")
     private Cow mother;
 
-    // Father relationship (self-referencing)
     @ManyToOne
     @JoinColumn(name = "father_id")
     private Cow father;
 
-    // Caretaker relationship
     @ManyToOne
     @JoinColumn(name = "caretaker_id")
     private User caretaker;

@@ -16,23 +16,10 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 
-/**
- * Populates a realistic herd so every screen has something to show.
- *
- * <p>Disabled by default. Enable with {@code cowtrack.seed.enabled=true}, which
- * the {@code dev} profile sets, or via the environment for a throwaway database.
- *
- * <p>Seeding is skipped entirely if any user already exists, so restarting
- * against a persistent database will not duplicate the herd or double the
- * production totals.
- *
- * <p>The generator is seeded with a fixed value so successive runs produce the
- * same figures; a demo that changes its numbers on every restart is harder to
- * talk about and harder to spot regressions in.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -42,7 +29,6 @@ public class DataSeeder implements ApplicationRunner {
     private static final String DEMO_EMAIL = "demo@cowtrack.dev";
     private static final String DEMO_PASSWORD = "demo1234";
 
-    /** Roughly Polokwane, Limpopo. Gives the map plausible coordinates. */
     private static final double FARM_LAT = -23.9045;
     private static final double FARM_LNG = 29.4689;
 
@@ -51,6 +37,7 @@ public class DataSeeder implements ApplicationRunner {
     private static final int FINANCIAL_MONTHS = 8;
 
     private final UserRepository userRepository;
+    private final FarmRepository farmRepository;
     private final CowRepository cowRepository;
     private final GeofenceRepository geofenceRepository;
     private final LocationRecordRepository locationRepository;
@@ -75,21 +62,26 @@ public class DataSeeder implements ApplicationRunner {
 
         log.info("Seeding demo data...");
 
-        User farmer = createUser("Tshepo Maabane", DEMO_EMAIL, User.Role.FARMER,
-                "082 123 4567", "Green Pastures Farm");
-        User caretaker = createUser("Naledi Mokoena", "naledi@cowtrack.dev", User.Role.CARETAKER,
-                "083 555 0198", "Green Pastures Farm");
+        Farm farm = new Farm();
+        farm.setFarmName("Green Pastures Farm");
+        farm.setLocation("Polokwane, Limpopo");
+        farm = farmRepository.save(farm);
 
-        List<Cow> herd = createHerd(caretaker);
-        createGeofences(herd);
-        createLocationHistory(herd);
-        createVitals(herd);
-        createProduction(herd);
-        createHealthRecords(herd, caretaker);
-        createVaccinations(herd);
-        createReminders(herd);
-        createFinancials(farmer);
-        createAlerts(herd);
+        User farmer = createUser("Tshepo Maabane", DEMO_EMAIL, User.Role.FARMER,
+                "082 123 4567", "Green Pastures Farm", farm);
+        User caretaker = createUser("Naledi Mokoena", "naledi@cowtrack.dev", User.Role.CARETAKER,
+                "083 555 0198", "Green Pastures Farm", farm);
+
+        List<Cow> herd = createHerd(caretaker, farm);
+        createGeofences(herd, farm);
+        createLocationHistory(herd, farm);
+        createVitals(herd, farm);
+        createProduction(herd, farm);
+        createHealthRecords(herd, caretaker, farm);
+        createVaccinations(herd, farm);
+        createReminders(herd, farm);
+        createFinancials(farmer, farm);
+        createAlerts(herd, farm);
 
         log.info("Seed complete: {} users, {} cows, {} location records, {} vitals, "
                         + "{} production records, {} financial records, {} alerts",
@@ -99,22 +91,25 @@ public class DataSeeder implements ApplicationRunner {
         log.info("Sign in with {} / {}", DEMO_EMAIL, DEMO_PASSWORD);
     }
 
-    private User createUser(String name, String email, User.Role role, String phone, String farm) {
+    private User createUser(String name, String email, User.Role role, String phone, String farmName, Farm farm) {
         User user = new User();
         user.setFullName(name);
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(DEMO_PASSWORD));
         user.setRole(role);
         user.setPhone(phone);
-        user.setFarmName(farm);
+        user.setFarmName(farmName);
         user.setLocation("Polokwane, Limpopo");
         user.setTimezone("Africa/Johannesburg");
         user.setLanguage("en");
         user.setCreatedAt(LocalDateTime.now().minusMonths(10));
-        return userRepository.save(user);
+        user.setFarms(new HashSet<>());
+        User savedUser = userRepository.save(user);
+        savedUser.getFarms().add(farm);
+        return userRepository.save(savedUser);
     }
 
-    private List<Cow> createHerd(User caretaker) {
+    private List<Cow> createHerd(User caretaker, Farm farm) {
         String[][] spec = {
                 {"CT-001", "Bessie",    "Holstein", "2020-03-14"},
                 {"CT-002", "Daisy",     "Jersey",   "2019-07-02"},
@@ -138,11 +133,11 @@ public class DataSeeder implements ApplicationRunner {
             cow.setBreed(row[2]);
             cow.setDateOfBirth(LocalDate.parse(row[3]));
             cow.setCaretaker(caretaker);
+            cow.setFarm(farm);
             cow.setCreatedAt(LocalDateTime.now().minusMonths(6));
             herd.add(cowRepository.save(cow));
         }
 
-        // A little lineage so the family fields are not all empty.
         link(herd, 8, 0);
         link(herd, 11, 5);
         return herd;
@@ -154,7 +149,7 @@ public class DataSeeder implements ApplicationRunner {
         cowRepository.save(calf);
     }
 
-    private void createGeofences(List<Cow> herd) {
+    private void createGeofences(List<Cow> herd, Farm farm) {
         for (Cow cow : herd) {
             Geofence fence = new Geofence();
             fence.setCow(cow);
@@ -162,15 +157,12 @@ public class DataSeeder implements ApplicationRunner {
             fence.setCenterLongitude(BigDecimal.valueOf(FARM_LNG));
             fence.setRadiusMeters(800);
             fence.setCreatedAt(LocalDateTime.now().minusMonths(6));
+            fence.setFarm(farm);
             geofenceRepository.save(fence);
         }
     }
 
-    /**
-     * A short GPS trail per animal. Two are left without a recent fix so the
-     * "inactive" status and the stale-collar path have something to show.
-     */
-    private void createLocationHistory(List<Cow> herd) {
+    private void createLocationHistory(List<Cow> herd, Farm farm) {
         for (int i = 0; i < herd.size(); i++) {
             Cow cow = herd.get(i);
             boolean staleCollar = (i == 6 || i == 10);
@@ -184,15 +176,15 @@ public class DataSeeder implements ApplicationRunner {
                 record.setRecordedAt(staleCollar
                         ? LocalDateTime.now().minusDays(3).minusHours(step * 2L)
                         : LocalDateTime.now().minusHours(step * 2L));
+                record.setFarm(farm);
                 locationRepository.save(record);
             }
         }
     }
 
-    private void createVitals(List<Cow> herd) {
+    private void createVitals(List<Cow> herd, Farm farm) {
         for (int i = 0; i < herd.size(); i++) {
             Cow cow = herd.get(i);
-            // Two animals run a fever so the warning thresholds are exercised.
             boolean unwell = (i == 2 || i == 7);
 
             for (int day = VITALS_DAYS; day >= 0; day--) {
@@ -208,14 +200,14 @@ public class DataSeeder implements ApplicationRunner {
                         ? round(30 + random.nextDouble() * 15, 1)
                         : round(62 + random.nextDouble() * 33, 1));
                 metric.setRecordedAt(LocalDateTime.now().minusDays(day).withHour(6).withMinute(30));
+                metric.setFarm(farm);
                 healthMetricRepository.save(metric);
             }
         }
     }
 
-    private void createProduction(List<Cow> herd) {
+    private void createProduction(List<Cow> herd, Farm farm) {
         for (Cow cow : herd) {
-            // Jerseys give less volume, Holsteins more. Beef breeds give none.
             double base = switch (cow.getBreed()) {
                 case "Holstein" -> 30;
                 case "Jersey" -> 22;
@@ -236,12 +228,13 @@ public class DataSeeder implements ApplicationRunner {
                 record.setMilkLitres(round(base + random.nextDouble() * 8 - 4, 1));
                 record.setWeightKg(round(weight, 1));
                 record.setCreatedAt(LocalDateTime.now().minusDays(day));
+                record.setFarm(farm);
                 productionRepository.save(record);
             }
         }
     }
 
-    private void createHealthRecords(List<Cow> herd, User vet) {
+    private void createHealthRecords(List<Cow> herd, User vet, Farm farm) {
         String[][] entries = {
                 {"Routine checkup", "No issues found; condition good"},
                 {"Mild lameness", "Hoof trimmed and dressed, rested for five days"},
@@ -258,17 +251,17 @@ public class DataSeeder implements ApplicationRunner {
             record.setVetName("Dr. Sipho Ndlovu");
             record.setRecordDate(LocalDate.now().minusDays(9L + i * 5L));
             record.setCreatedAt(LocalDateTime.now().minusDays(9L + i * 5L));
+            record.setFarm(farm);
             healthRecordRepository.save(record);
         }
     }
 
-    private void createVaccinations(List<Cow> herd) {
+    private void createVaccinations(List<Cow> herd, Farm farm) {
         String[] vaccines = {"Brucellosis", "Lumpy skin disease", "Anthrax", "Botulism"};
 
         for (int i = 0; i < herd.size(); i++) {
             Cow cow = herd.get(i);
 
-            // A completed dose from earlier in the year.
             Vaccination done = new Vaccination();
             done.setCow(cow);
             done.setVaccineName(vaccines[i % vaccines.length]);
@@ -276,10 +269,9 @@ public class DataSeeder implements ApplicationRunner {
             done.setNextDueDate(LocalDate.now().plusMonths(7).plusDays(i));
             done.setVetName("Dr. Sipho Ndlovu");
             done.setNotes("Annual programme");
+            done.setFarm(farm);
             vaccinationRepository.save(done);
 
-            // Every third animal also has one scheduled, two of them overdue, so
-            // the scheduled and overdue states both appear.
             if (i % 3 == 0) {
                 Vaccination upcoming = new Vaccination();
                 upcoming.setCow(cow);
@@ -288,12 +280,13 @@ public class DataSeeder implements ApplicationRunner {
                         ? LocalDate.now().minusDays(6L + i)
                         : LocalDate.now().plusDays(12L + i));
                 upcoming.setVetName("Dr. Sipho Ndlovu");
+                upcoming.setFarm(farm);
                 vaccinationRepository.save(upcoming);
             }
         }
     }
 
-    private void createReminders(List<Cow> herd) {
+    private void createReminders(List<Cow> herd, Farm farm) {
         String[][] spec = {
                 {"Vaccination",   "MONTHLY", "-2", "Lumpy skin booster due"},
                 {"Hoof trimming", "MONTHLY", "0",  "Check front hooves"},
@@ -309,11 +302,12 @@ public class DataSeeder implements ApplicationRunner {
             reminder.setFrequency(Reminder.Frequency.valueOf(spec[i][1]));
             reminder.setStartDate(LocalDate.now().plusDays(Long.parseLong(spec[i][2])));
             reminder.setCreatedAt(LocalDateTime.now().minusDays(20));
+            reminder.setFarm(farm);
             reminderRepository.save(reminder);
         }
     }
 
-    private void createFinancials(User owner) {
+    private void createFinancials(User owner, Farm farm) {
         String[][] costs = {
                 {"Feed", "11800"}, {"Veterinary", "2600"}, {"Labour", "7400"},
                 {"Maintenance", "1900"}, {"Utilities", "1450"},
@@ -324,24 +318,24 @@ public class DataSeeder implements ApplicationRunner {
 
             save(owner, FinancialRecord.EntryType.REVENUE,
                     round(52000 + random.nextDouble() * 18000, 2), "Milk sales",
-                    "Bulk collection", when);
+                    "Bulk collection", when, farm);
 
             if (month % 3 == 0) {
                 save(owner, FinancialRecord.EntryType.REVENUE,
                         round(9000 + random.nextDouble() * 6000, 2), "Livestock sales",
-                        "Weaner sale", when.plusDays(4));
+                        "Weaner sale", when.plusDays(4), farm);
             }
 
             for (String[] cost : costs) {
                 double amount = Double.parseDouble(cost[1]) * (0.85 + random.nextDouble() * 0.3);
                 save(owner, FinancialRecord.EntryType.COST, round(amount, 2), cost[0],
-                        cost[0] + " for " + when.getMonth(), when);
+                        cost[0] + " for " + when.getMonth(), when, farm);
             }
         }
     }
 
     private void save(User owner, FinancialRecord.EntryType type, BigDecimal amount,
-                      String category, String description, LocalDate when) {
+                      String category, String description, LocalDate when, Farm farm) {
         FinancialRecord record = new FinancialRecord();
         record.setUser(owner);
         record.setEntryType(type);
@@ -350,10 +344,11 @@ public class DataSeeder implements ApplicationRunner {
         record.setDescription(description);
         record.setRecordDate(when);
         record.setCreatedAt(when.atStartOfDay());
+        record.setFarm(farm);
         financialRepository.save(record);
     }
 
-    private void createAlerts(List<Cow> herd) {
+    private void createAlerts(List<Cow> herd, Farm farm) {
         record Spec(int cowIndex, Alert.AlertType type, String message, int hoursAgo, boolean resolved) {}
 
         List<Spec> specs = List.of(
@@ -378,6 +373,7 @@ public class DataSeeder implements ApplicationRunner {
             alert.setMessage(spec.message());
             alert.setIsResolved(spec.resolved());
             alert.setCreatedAt(LocalDateTime.now().minusHours(spec.hoursAgo()));
+            alert.setFarm(farm);
             alertRepository.save(alert);
         }
     }

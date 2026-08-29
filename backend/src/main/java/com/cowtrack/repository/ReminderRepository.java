@@ -11,22 +11,25 @@ import java.util.List;
 @Repository
 public interface ReminderRepository extends JpaRepository<Reminder, Long> {
 
-    // Find reminders for a cow
     List<Reminder> findByCowCowIdOrderByStartDateDesc(Long cowId);
 
-    // Find active (incomplete) reminders
     List<Reminder> findByIsCompletedFalse();
 
-    // Find active reminders for a cow
     List<Reminder> findByCowCowIdAndIsCompletedFalse(Long cowId);
 
-    // Find reminders by type
     List<Reminder> findByReminderType(String reminderType);
 
-    // Find reminders due today or earlier
     @Query("SELECT r FROM Reminder r WHERE r.isCompleted = false AND r.startDate <= :today")
     List<Reminder> findDueReminders(@Param("today") LocalDate today);
 
-    // Find reminders by frequency
     List<Reminder> findByFrequency(Reminder.Frequency frequency);
+
+    List<Reminder> findByFarmFarmIdOrderByStartDateDesc(Long farmId);
+
+    List<Reminder> findByFarmFarmIdAndIsCompletedFalse(Long farmId);
+
+    long countByFarmFarmIdAndIsCompletedFalse(Long farmId);
+
+    @Query("SELECT r FROM Reminder r WHERE r.farm.farmId = :farmId AND r.isCompleted = false AND r.startDate <= :today")
+    List<Reminder> findDueRemindersByFarm(@Param("farmId") Long farmId, @Param("today") LocalDate today);
 }

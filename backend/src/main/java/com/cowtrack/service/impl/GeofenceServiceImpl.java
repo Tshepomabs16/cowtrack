@@ -6,9 +6,13 @@ import com.cowtrack.entity.Cow;
 import com.cowtrack.entity.Geofence;
 import com.cowtrack.exception.BusinessException;
 import com.cowtrack.exception.ResourceNotFoundException;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.repository.CowRepository;
+import com.cowtrack.repository.FarmRepository;
 import com.cowtrack.repository.GeofenceRepository;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.GeofenceService;
+import com.cowtrack.util.GeofenceUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,11 +30,13 @@ public class GeofenceServiceImpl implements GeofenceService {
 
     private final GeofenceRepository geofenceRepository;
     private final CowRepository cowRepository;
+    private final FarmContext farmContext;
+    private final FarmRepository farmRepository;
 
     @Override
     public GeofenceResponse createGeofence(GeofenceRequest request) {
-        // Check if cow exists
-        Cow cow = cowRepository.findById(request.getCowId())
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getCowId())
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + request.getCowId()));
 
         // Check if cow already has a geofence
@@ -40,7 +46,11 @@ public class GeofenceServiceImpl implements GeofenceService {
                 });
 
         // Create geofence
+        Farm farm = farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found with id: " + farmId));
+
         Geofence geofence = new Geofence();
+        geofence.setFarm(farm);
         geofence.setCow(cow);
         geofence.setCenterLatitude(request.getCenterLatitude());
         geofence.setCenterLongitude(request.getCenterLongitude());
@@ -57,6 +67,10 @@ public class GeofenceServiceImpl implements GeofenceService {
     public GeofenceResponse getGeofenceByCowId(Long cowId) {
         Geofence geofence = geofenceRepository.findByCowCowId(cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Geofence not found for cow id: " + cowId));
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!geofence.getFarm().getFarmId().equals(farmId)) {
+            throw new ResourceNotFoundException("Geofence not found for cow id: " + cowId);
+        }
         return toResponse(geofence);
     }
 
@@ -64,10 +78,14 @@ public class GeofenceServiceImpl implements GeofenceService {
     public GeofenceResponse updateGeofence(Long geofenceId, GeofenceRequest request) {
         Geofence geofence = geofenceRepository.findById(geofenceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Geofence not found with id: " + geofenceId));
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!geofence.getFarm().getFarmId().equals(farmId)) {
+            throw new ResourceNotFoundException("Geofence not found with id: " + geofenceId);
+        }
 
         // If changing cow, check if new cow already has a geofence
         if (!geofence.getCow().getCowId().equals(request.getCowId())) {
-            Cow newCow = cowRepository.findById(request.getCowId())
+            Cow newCow = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getCowId())
                     .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + request.getCowId()));
 
             geofenceRepository.findByCowCowId(request.getCowId())
@@ -88,7 +106,10 @@ public class GeofenceServiceImpl implements GeofenceService {
 
     @Override
     public void deleteGeofence(Long geofenceId) {
-        if (!geofenceRepository.existsById(geofenceId)) {
+        Geofence geofence = geofenceRepository.findById(geofenceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Geofence not found with id: " + geofenceId));
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!geofence.getFarm().getFarmId().equals(farmId)) {
             throw new ResourceNotFoundException("Geofence not found with id: " + geofenceId);
         }
         geofenceRepository.deleteById(geofenceId);
@@ -97,7 +118,8 @@ public class GeofenceServiceImpl implements GeofenceService {
 
     @Override
     public List<GeofenceResponse> getGeofencesByCaretaker(Long caretakerId) {
-        List<Geofence> geofences = geofenceRepository.findByCaretakerId(caretakerId);
+        Long farmId = farmContext.getCurrentFarmId();
+        List<Geofence> geofences = geofenceRepository.findByFarmFarmId(farmId);
         return geofences.stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
@@ -105,17 +127,19 @@ public class GeofenceServiceImpl implements GeofenceService {
 
     @Override
     public boolean isLocationInsideGeofence(Long cowId, java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
+        Long farmId = farmContext.getCurrentFarmId();
         return geofenceRepository.findByCowCowId(cowId)
+                .filter(geofence -> geofence.getFarm() != null && geofence.getFarm().getFarmId().equals(farmId))
                 .map(geofence -> {
                     // For simplicity, we'll assume it's always active
                     // In real implementation, check isActive field
-                    double distance = calculateDistance(
+                    return GeofenceUtils.isInsideRadius(
                             latitude.doubleValue(),
                             longitude.doubleValue(),
                             geofence.getCenterLatitude().doubleValue(),
-                            geofence.getCenterLongitude().doubleValue()
+                            geofence.getCenterLongitude().doubleValue(),
+                            geofence.getRadiusMeters()
                     );
-                    return distance <= geofence.getRadiusMeters();
                 })
                 .orElse(false);
     }
@@ -124,6 +148,10 @@ public class GeofenceServiceImpl implements GeofenceService {
     public GeofenceResponse deactivateGeofence(Long geofenceId) {
         Geofence geofence = geofenceRepository.findById(geofenceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Geofence not found with id: " + geofenceId));
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!geofence.getFarm().getFarmId().equals(farmId)) {
+            throw new ResourceNotFoundException("Geofence not found with id: " + geofenceId);
+        }
 
         // Note: Your current schema doesn't have isActive field
         // We'll add it later, or you can add to entity
@@ -137,6 +165,10 @@ public class GeofenceServiceImpl implements GeofenceService {
     public GeofenceResponse activateGeofence(Long geofenceId) {
         Geofence geofence = geofenceRepository.findById(geofenceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Geofence not found with id: " + geofenceId));
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!geofence.getFarm().getFarmId().equals(farmId)) {
+            throw new ResourceNotFoundException("Geofence not found with id: " + geofenceId);
+        }
 
         // Note: Your current schema doesn't have isActive field
         // We'll add it later, or you can add to entity
@@ -157,17 +189,5 @@ public class GeofenceServiceImpl implements GeofenceService {
         response.setCreatedAt(geofence.getCreatedAt());
         response.setIsActive(true); // Default to true since schema doesn't have this field
         return response;
-    }
-
-    private double calculateDistance(double lat1, double lng1, double lat2, double lng2) {
-        // Haversine formula
-        double earthRadius = 6371000; // meters
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLng = Math.toRadians(lng2 - lng1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return earthRadius * c;
     }
 }

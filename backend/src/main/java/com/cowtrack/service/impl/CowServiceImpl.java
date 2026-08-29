@@ -4,6 +4,7 @@ import com.cowtrack.dto.request.BulkCowUpdateRequest;
 import com.cowtrack.dto.request.CowRequest;
 import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.entity.Geofence;
 import com.cowtrack.entity.LocationRecord;
 import com.cowtrack.entity.User;
@@ -11,6 +12,7 @@ import com.cowtrack.exception.BusinessException;
 import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.exception.ValidationException;
 import com.cowtrack.repository.*;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.CowService;
 import com.cowtrack.service.mapper.CowMapper;
 import lombok.RequiredArgsConstructor;
@@ -33,35 +35,37 @@ public class CowServiceImpl implements CowService {
     private final HealthRecordRepository healthRecordRepository;
     private final HealthMetricRepository healthMetricRepository;
     private final ProductionRecordRepository productionRecordRepository;
+    private final FarmRepository farmRepository;
     private final CowMapper cowMapper;
+    private final FarmContext farmContext;
 
     @Override
     public CowResponse createCow(CowRequest request) {
-        // Check if tag ID already exists
-        if (cowRepository.existsByTagId(request.getTagId())) {
+        Long farmId = farmContext.getCurrentFarmId();
+
+        if (cowRepository.findByFarmFarmIdAndTagId(farmId, request.getTagId()).isPresent()) {
             throw new BusinessException("Tag ID already exists: " + request.getTagId());
         }
 
-        // Create cow
         Cow cow = cowMapper.toEntity(request);
+        Farm farm = farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found"));
+        cow.setFarm(farm);
 
-        // Set mother if provided
         if (request.getMotherId() != null) {
-            Cow mother = cowRepository.findById(request.getMotherId())
+            Cow mother = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getMotherId())
                     .orElseThrow(() -> new ResourceNotFoundException("Mother cow not found"));
             cow.setMother(mother);
         }
 
-        // Set father if provided
         if (request.getFatherId() != null) {
-            Cow father = cowRepository.findById(request.getFatherId())
+            Cow father = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getFatherId())
                     .orElseThrow(() -> new ResourceNotFoundException("Father cow not found"));
             cow.setFather(father);
         }
 
-        // Set caretaker if provided
         if (request.getCaretakerId() != null) {
-            User caretaker = userRepository.findById(request.getCaretakerId())
+            User caretaker = userRepository.findByFarmFarmIdAndUserId(farmId, request.getCaretakerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Caretaker not found"));
             cow.setCaretaker(caretaker);
         }
@@ -72,21 +76,24 @@ public class CowServiceImpl implements CowService {
 
     @Override
     public CowResponse getCowById(Long cowId) {
-        Cow cow = cowRepository.findById(cowId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
         return getCowResponse(cow);
     }
 
     @Override
     public CowResponse getCowByTagId(String tagId) {
-        Cow cow = cowRepository.findByTagId(tagId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndTagId(farmId, tagId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with tag: " + tagId));
         return getCowResponse(cow);
     }
 
     @Override
     public List<CowResponse> getAllCows() {
-        return cowRepository.findAll().stream()
+        Long farmId = farmContext.getCurrentFarmId();
+        return cowRepository.findByFarmFarmId(farmId).stream()
                 .map(this::getCowResponse)
                 .collect(Collectors.toList());
     }
@@ -100,12 +107,14 @@ public class CowServiceImpl implements CowService {
 
     @Override
     public CowResponse updateCow(Long cowId, CowRequest request) {
-        Cow cow = cowRepository.findById(cowId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
 
-        // Check if new tag ID is unique (if changed)
-        if (!cow.getTagId().equals(request.getTagId()) && cowRepository.existsByTagId(request.getTagId())) {
-            throw new BusinessException("Tag ID already exists: " + request.getTagId());
+        if (!cow.getTagId().equals(request.getTagId())) {
+            if (cowRepository.findByFarmFarmIdAndTagId(farmId, request.getTagId()).isPresent()) {
+                throw new BusinessException("Tag ID already exists: " + request.getTagId());
+            }
         }
 
         cow.setTagId(request.getTagId());
@@ -113,9 +122,8 @@ public class CowServiceImpl implements CowService {
         cow.setDateOfBirth(request.getDateOfBirth());
         cow.setBreed(request.getBreed());
 
-        // Update relationships if provided
         if (request.getMotherId() != null) {
-            Cow mother = cowRepository.findById(request.getMotherId())
+            Cow mother = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getMotherId())
                     .orElseThrow(() -> new ResourceNotFoundException("Mother cow not found"));
             cow.setMother(mother);
         } else {
@@ -123,7 +131,7 @@ public class CowServiceImpl implements CowService {
         }
 
         if (request.getFatherId() != null) {
-            Cow father = cowRepository.findById(request.getFatherId())
+            Cow father = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getFatherId())
                     .orElseThrow(() -> new ResourceNotFoundException("Father cow not found"));
             cow.setFather(father);
         } else {
@@ -131,7 +139,7 @@ public class CowServiceImpl implements CowService {
         }
 
         if (request.getCaretakerId() != null) {
-            User caretaker = userRepository.findById(request.getCaretakerId())
+            User caretaker = userRepository.findByFarmFarmIdAndUserId(farmId, request.getCaretakerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Caretaker not found"));
             cow.setCaretaker(caretaker);
         } else {
@@ -144,10 +152,10 @@ public class CowServiceImpl implements CowService {
 
     @Override
     public void deleteCow(Long cowId) {
-        if (!cowRepository.existsById(cowId)) {
-            throw new ResourceNotFoundException("Cow not found with id: " + cowId);
-        }
-        cowRepository.deleteById(cowId);
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
+        cowRepository.delete(cow);
     }
 
     @Override
@@ -158,15 +166,18 @@ public class CowServiceImpl implements CowService {
 
     @Override
     public List<CowResponse> searchCows(String query) {
-        return cowRepository.findByNameContainingIgnoreCase(query).stream()
+        Long farmId = farmContext.getCurrentFarmId();
+        return cowRepository.findByFarmFarmIdAndNameContainingIgnoreCase(farmId, query).stream()
                 .map(this::getCowResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public CowResponse assignCaretaker(Long cowId, Long caretakerId) {
-        Cow cow = getCowEntity(cowId);
-        User caretaker = userRepository.findById(caretakerId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
+        User caretaker = userRepository.findByFarmFarmIdAndUserId(farmId, caretakerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Caretaker not found"));
 
         cow.setCaretaker(caretaker);
@@ -175,17 +186,20 @@ public class CowServiceImpl implements CowService {
     }
 
     private CowResponse getCowResponse(Cow cow) {
-        // Get geofence if exists
+        // Derived fields are read through the owning farm, not just the cow id.
+        // The cow is already farm-scoped by every caller, but resolving its
+        // related records without a farm predicate would let a record belonging
+        // to another farm decide this animal's displayed position or status.
+        Long farmId = cow.getFarm() != null
+                ? cow.getFarm().getFarmId()
+                : farmContext.getCurrentFarmId();
+
         Geofence geofence = geofenceRepository.findByCowCowId(cow.getCowId()).orElse(null);
-
-        // Get last location
-        LocationRecord lastLocation = locationRecordRepository.findLatestByCowId(cow.getCowId()).orElse(null);
-
-        // Count health records
+        LocationRecord lastLocation = locationRecordRepository
+                .findLatestByFarmIdAndCowId(farmId, cow.getCowId()).orElse(null);
         Integer healthRecordCount = healthRecordRepository.findByCowCowIdOrderByRecordDateDesc(cow.getCowId()).size();
-
-        // Check for active alerts - FIXED METHOD CALL
-        Boolean hasActiveAlerts = !alertRepository.findByCowCowIdAndIsResolvedFalse(cow.getCowId()).isEmpty();
+        Boolean hasActiveAlerts = !alertRepository
+                .findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cow.getCowId()).isEmpty();
 
         CowResponse response =
                 cowMapper.toResponse(cow, geofence, lastLocation, healthRecordCount, hasActiveAlerts);
@@ -205,12 +219,6 @@ public class CowServiceImpl implements CowService {
                     response.setTemperature(metric.getTemperature());
                     response.setHeartRate(metric.getHeartRate());
                     response.setLastCheck(metric.getRecordedAt());
-
-                    // Vitals outside their normal band mean the animal needs
-                    // attention, and that outranks both "healthy" and a stale
-                    // collar: a health problem is more actionable than a missing
-                    // GPS fix. Without this the response could report "healthy"
-                    // next to a reading the health page marks as a warning.
                     if (metric.isWarning()) {
                         response.setStatus("alert");
                     }
@@ -229,15 +237,16 @@ public class CowServiceImpl implements CowService {
             throw new ValidationException("No updates supplied");
         }
 
+        Long farmId = farmContext.getCurrentFarmId();
         List<CowResponse> results = new java.util.ArrayList<>();
 
         for (BulkCowUpdateRequest update : updates) {
-            Cow cow = cowRepository.findById(update.getCowId())
+            Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, update.getCowId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Cow not found with id: " + update.getCowId()));
 
             if (update.getTagId() != null && !update.getTagId().equals(cow.getTagId())) {
-                if (cowRepository.existsByTagId(update.getTagId())) {
+                if (cowRepository.findByFarmFarmIdAndTagId(farmId, update.getTagId()).isPresent()) {
                     throw new BusinessException("Tag ID already exists: " + update.getTagId());
                 }
                 cow.setTagId(update.getTagId());
@@ -252,7 +261,7 @@ public class CowServiceImpl implements CowService {
                 cow.setDateOfBirth(update.getDateOfBirth());
             }
             if (update.getCaretakerId() != null) {
-                cow.setCaretaker(userRepository.findById(update.getCaretakerId())
+                cow.setCaretaker(userRepository.findByFarmFarmIdAndUserId(farmId, update.getCaretakerId())
                         .orElseThrow(() -> new ResourceNotFoundException(
                                 "Caretaker not found with id: " + update.getCaretakerId())));
             }

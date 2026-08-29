@@ -12,13 +12,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Map;
 
-/**
- * Issues and validates the JWTs used for API authentication.
- *
- * <p>The signing key comes from {@code cowtrack.jwt.secret} and must be at least
- * 32 bytes for HMAC-SHA256. Tokens carry the user id and role as claims so that
- * request authorisation does not need a database round trip.
- */
 @Service
 public class JwtService {
 
@@ -38,21 +31,41 @@ public class JwtService {
         this.expirationMillis = expirationMillis;
     }
 
-    public String generateToken(String email, Long userId, String role) {
+    public String generateToken(String email, Long userId, String role, Long farmId) {
         Date now = new Date();
+        var claimsBuilder = new java.util.HashMap<String, Object>();
+        claimsBuilder.put("userId", userId);
+        claimsBuilder.put("role", role);
+        if (farmId != null) {
+            claimsBuilder.put("farmId", farmId);
+        }
         return Jwts.builder()
                 .subject(email)
-                .claims(Map.of("userId", userId, "role", role))
+                .claims(claimsBuilder)
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expirationMillis))
                 .signWith(signingKey)
                 .compact();
     }
 
-    /** Returns the subject (email), or null if the token is invalid or expired. */
     public String extractEmail(String token) {
         Claims claims = parse(token);
         return claims == null ? null : claims.getSubject();
+    }
+
+    public Long extractUserId(String token) {
+        Claims claims = parse(token);
+        return claims == null ? null : claims.get("userId", Long.class);
+    }
+
+    public String extractRole(String token) {
+        Claims claims = parse(token);
+        return claims == null ? null : claims.get("role", String.class);
+    }
+
+    public Long extractFarmId(String token) {
+        Claims claims = parse(token);
+        return claims == null ? null : claims.get("farmId", Long.class);
     }
 
     public boolean isValid(String token) {

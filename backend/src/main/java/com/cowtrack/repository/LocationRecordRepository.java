@@ -12,21 +12,18 @@ import java.util.Optional;
 @Repository
 public interface LocationRecordRepository extends JpaRepository<LocationRecord, Long> {
 
-    // Find all locations for a cow, newest first
     List<LocationRecord> findByCowCowIdOrderByRecordedAtDesc(Long cowId);
 
-    // Find latest location for a cow
-    @Query("SELECT lr FROM LocationRecord lr WHERE lr.cow.cowId = :cowId ORDER BY lr.recordedAt DESC LIMIT 1")
-    Optional<LocationRecord> findLatestByCowId(@Param("cowId") Long cowId);
+    // Deliberately absent: a latest-by-cow lookup with no farm predicate. It
+    // returned records written by any farm, which put one farm's injected
+    // position onto another farm's live map. Use findLatestByFarmIdAndCowId.
 
-    // Find locations within time range
     @Query("SELECT lr FROM LocationRecord lr WHERE lr.cow.cowId = :cowId AND lr.recordedAt BETWEEN :start AND :end ORDER BY lr.recordedAt DESC")
     List<LocationRecord> findByCowIdAndTimeRange(
             @Param("cowId") Long cowId,
             @Param("start") LocalDateTime start,
             @Param("end") LocalDateTime end);
 
-    // Find locations in a geographical area
     @Query("SELECT lr FROM LocationRecord lr WHERE lr.cow.cowId = :cowId AND " +
             "lr.latitude BETWEEN :minLat AND :maxLat AND " +
             "lr.longitude BETWEEN :minLng AND :maxLng ORDER BY lr.recordedAt DESC")
@@ -37,10 +34,28 @@ public interface LocationRecordRepository extends JpaRepository<LocationRecord, 
             @Param("minLng") java.math.BigDecimal minLng,
             @Param("maxLng") java.math.BigDecimal maxLng);
 
-    // Count locations per day for a cow
     @Query("SELECT DATE(lr.recordedAt) as day, COUNT(lr) as count " +
             "FROM LocationRecord lr WHERE lr.cow.cowId = :cowId " +
             "GROUP BY DATE(lr.recordedAt) " +
             "ORDER BY day DESC")
     List<Object[]> countLocationsPerDay(@Param("cowId") Long cowId);
+
+    List<LocationRecord> findByFarmFarmIdOrderByRecordedAtDesc(Long farmId);
+
+    @Query("SELECT lr FROM LocationRecord lr WHERE lr.farm.farmId = :farmId ORDER BY lr.recordedAt DESC LIMIT 1")
+    Optional<LocationRecord> findLatestByFarmId(@Param("farmId") Long farmId);
+
+    long countByFarmFarmId(Long farmId);
+
+    List<LocationRecord> findByFarmFarmIdAndCowCowIdOrderByRecordedAtDesc(Long farmId, Long cowId);
+
+    @Query("SELECT lr FROM LocationRecord lr WHERE lr.farm.farmId = :farmId AND lr.cow.cowId = :cowId ORDER BY lr.recordedAt DESC LIMIT 1")
+    Optional<LocationRecord> findLatestByFarmIdAndCowId(@Param("farmId") Long farmId, @Param("cowId") Long cowId);
+
+    @Query("SELECT lr FROM LocationRecord lr WHERE lr.farm.farmId = :farmId AND lr.cow.cowId = :cowId AND lr.recordedAt BETWEEN :start AND :end ORDER BY lr.recordedAt DESC")
+    List<LocationRecord> findByFarmIdAndCowIdAndTimeRange(
+            @Param("farmId") Long farmId,
+            @Param("cowId") Long cowId,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }

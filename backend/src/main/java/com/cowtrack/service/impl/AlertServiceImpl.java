@@ -4,9 +4,12 @@ import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
 import com.cowtrack.entity.Alert;
 import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.repository.AlertRepository;
 import com.cowtrack.repository.CowRepository;
+import com.cowtrack.repository.FarmRepository;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.AlertService;
 import com.cowtrack.util.AlertMessageGenerator;
 import lombok.RequiredArgsConstructor;
@@ -26,38 +29,47 @@ public class AlertServiceImpl implements AlertService {
 
     private final AlertRepository alertRepository;
     private final CowRepository cowRepository;
+    private final FarmRepository farmRepository;
+    private final FarmContext farmContext;
     private final AlertMessageGenerator alertMessageGenerator;
 
     @Override
     public List<AlertResponse> getAllAlerts() {
-        return alertRepository.findAll().stream()
-                .sorted((a1, a2) -> a2.getCreatedAt().compareTo(a1.getCreatedAt()))
+        Long farmId = farmContext.getCurrentFarmId();
+        return alertRepository.findByFarmFarmIdOrderByCreatedAtDesc(farmId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<AlertResponse> getAlertsByCow(Long cowId) {
-        if (!cowRepository.existsById(cowId)) {
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!cowRepository.findByFarmFarmIdAndCowId(farmId, cowId).isPresent()) {
             throw new ResourceNotFoundException("Cow not found with id: " + cowId);
         }
 
-        return alertRepository.findByCowCowIdOrderByCreatedAtDesc(cowId).stream()
+        return alertRepository.findByFarmFarmIdAndCowCowIdOrderByCreatedAtDesc(farmId, cowId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<AlertResponse> getActiveAlerts() {
-        return alertRepository.findByIsResolvedFalseOrderByCreatedAtDesc().stream()
+        Long farmId = farmContext.getCurrentFarmId();
+        return alertRepository.findByFarmFarmIdAndIsResolvedFalseOrderByCreatedAtDesc(farmId).stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public AlertResponse markAsResolved(Long alertId) {
+        Long farmId = farmContext.getCurrentFarmId();
         Alert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + alertId));
+        if (alert.getCow() == null || alert.getCow().getFarm() == null
+                || !alert.getCow().getFarm().getFarmId().equals(farmId)) {
+            throw new ResourceNotFoundException("Alert not found with id: " + alertId);
+        }
 
         alert.setIsResolved(true);
         Alert updatedAlert = alertRepository.save(alert);
@@ -68,8 +80,11 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public void markAllAsResolved(Long cowId) {
-        // Use the method we just added
-        List<Alert> activeAlerts = alertRepository.findByCowCowIdAndIsResolvedFalse(cowId);
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!cowRepository.findByFarmFarmIdAndCowId(farmId, cowId).isPresent()) {
+            throw new ResourceNotFoundException("Cow not found with id: " + cowId);
+        }
+        List<Alert> activeAlerts = alertRepository.findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cowId);
         activeAlerts.forEach(alert -> alert.setIsResolved(true));
         alertRepository.saveAll(activeAlerts);
 
@@ -78,12 +93,14 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public long getActiveAlertCount() {
-        return alertRepository.countByIsResolvedFalse();
+        Long farmId = farmContext.getCurrentFarmId();
+        return alertRepository.countByFarmFarmIdAndIsResolvedFalse(farmId);
     }
 
     @Override
     public List<AlertResponse> filterAlerts(AlertFilterRequest filter) {
-        List<Alert> allAlerts = alertRepository.findAll();
+        Long farmId = farmContext.getCurrentFarmId();
+        List<Alert> allAlerts = alertRepository.findByFarmFarmIdOrderByCreatedAtDesc(farmId);
 
         return allAlerts.stream()
                 .filter(alert -> filter.getCowId() == null || alert.getCow().getCowId().equals(filter.getCowId()))
@@ -101,7 +118,8 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public void createGeofenceBreachAlert(Long cowId, boolean isInside) {
-        Cow cow = cowRepository.findById(cowId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
 
         Alert alert = new Alert();
@@ -110,19 +128,17 @@ public class AlertServiceImpl implements AlertService {
         alert.setMessage(alertMessageGenerator.generateGeofenceBreachMessage(cow, isInside));
         alert.setIsResolved(false);
         alert.setCreatedAt(LocalDateTime.now());
+        alert.setFarm(farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
         alertRepository.save(alert);
         log.warn("Created geofence breach alert for cow {}: {}", cow.getTagId(), alert.getMessage());
-
-        // In production, you would also:
-        // 1. Send email/SMS notification
-        // 2. Send push notification to mobile app
-        // 3. Trigger alarm sound
     }
 
     @Override
     public void createNoSignalAlert(Long cowId, long hoursWithoutSignal) {
-        Cow cow = cowRepository.findById(cowId)
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
 
         Alert alert = new Alert();
@@ -131,6 +147,8 @@ public class AlertServiceImpl implements AlertService {
         alert.setMessage(alertMessageGenerator.generateNoSignalMessage(cow, hoursWithoutSignal));
         alert.setIsResolved(false);
         alert.setCreatedAt(LocalDateTime.now());
+        alert.setFarm(farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
         alertRepository.save(alert);
         log.warn("Created no signal alert for cow {}: {} hours without signal", cow.getTagId(), hoursWithoutSignal);
@@ -183,7 +201,8 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public int resolveAllAlerts() {
-        List<Alert> open = alertRepository.findByIsResolvedFalseOrderByCreatedAtDesc();
+        Long farmId = farmContext.getCurrentFarmId();
+        List<Alert> open = alertRepository.findByFarmFarmIdAndIsResolvedFalseOrderByCreatedAtDesc(farmId);
         open.forEach(alert -> alert.setIsResolved(true));
         alertRepository.saveAll(open);
 
@@ -193,7 +212,11 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public void deleteAlert(Long alertId) {
-        if (!alertRepository.existsById(alertId)) {
+        Long farmId = farmContext.getCurrentFarmId();
+        Alert alert = alertRepository.findById(alertId)
+                .orElseThrow(() -> new ResourceNotFoundException("Alert not found with id: " + alertId));
+        if (alert.getCow() == null || alert.getCow().getFarm() == null
+                || !alert.getCow().getFarm().getFarmId().equals(farmId)) {
             throw new ResourceNotFoundException("Alert not found with id: " + alertId);
         }
         alertRepository.deleteById(alertId);
@@ -201,7 +224,8 @@ public class AlertServiceImpl implements AlertService {
 
     @Override
     public java.util.Map<String, Object> getAlertStats() {
-        List<Alert> all = alertRepository.findAll();
+        Long farmId = farmContext.getCurrentFarmId();
+        List<Alert> all = alertRepository.findByFarmFarmIdOrderByCreatedAtDesc(farmId);
 
         java.util.Map<String, Long> bySeverity = new java.util.LinkedHashMap<>();
         java.util.Map<String, Long> byType = new java.util.LinkedHashMap<>();

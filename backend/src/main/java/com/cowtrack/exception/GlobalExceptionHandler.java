@@ -4,6 +4,7 @@ import com.cowtrack.dto.common.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -67,6 +68,33 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * A role check refused the call. Spring Security raises this from
+     * {@code @PreAuthorize}, and without an explicit handler it reached the
+     * catch-all below and was reported as a 500 - so a client could not tell
+     * "you are not allowed" from "the server broke", and every denial was
+     * logged as a fault.
+     *
+     * <p>Deliberately terse: the message says the action was refused and not
+     * which role would have been required, since that discloses the
+     * authorisation model to a caller who already failed it.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException ex, WebRequest request) {
+
+        log.warn("Access denied to {}: {}", getRequestPath(request), ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                "You do not have permission to perform this action",
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                getRequestPath(request)
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
+    }
+
+    /**
      * Framework-level request faults: wrong verb, missing or unparseable
      * parameter, malformed body. All of these are the caller's mistake, but
      * without explicit handlers they fell through to the catch-all below and
@@ -126,6 +154,22 @@ public class GlobalExceptionHandler {
         );
 
         return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyRequestsException(
+            TooManyRequestsException ex, WebRequest request) {
+
+        log.warn("Rate limited: {}", ex.getMessage());
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                ex.getMessage(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                "Too Many Requests",
+                getRequestPath(request)
+        );
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.TOO_MANY_REQUESTS);
     }
 
     @ExceptionHandler(BusinessException.class)

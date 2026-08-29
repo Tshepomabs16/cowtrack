@@ -11,21 +11,24 @@ import java.util.List;
 @Repository
 public interface HealthRecordRepository extends JpaRepository<HealthRecord, Long> {
 
-    // Find health records for a cow
     List<HealthRecord> findByCowCowIdOrderByRecordDateDesc(Long cowId);
 
-    // Find recent health records
     List<HealthRecord> findByCowCowIdAndRecordDateAfterOrderByRecordDateDesc(
             Long cowId, LocalDate date);
 
-    // Find by diagnosis (search)
     List<HealthRecord> findByDiagnosisContainingIgnoreCase(String diagnosis);
 
-    // Find by vet name
     List<HealthRecord> findByVetNameContainingIgnoreCase(String vetName);
 
-    // Get health summary for a cow
     @Query("SELECT MIN(hr.recordDate) as firstDate, MAX(hr.recordDate) as lastDate, COUNT(hr) as totalRecords " +
             "FROM HealthRecord hr WHERE hr.cow.cowId = :cowId")
     Object[] getHealthSummary(@Param("cowId") Long cowId);
+
+    List<HealthRecord> findByFarmFarmIdOrderByRecordDateDesc(Long farmId);
+
+    List<HealthRecord> findByFarmFarmIdAndDiagnosisContainingIgnoreCase(Long farmId, String diagnosis);
+
+    long countByFarmFarmId(Long farmId);
+
+    List<HealthRecord> findByFarmFarmIdAndVetNameContainingIgnoreCase(Long farmId, String vetName);
 }

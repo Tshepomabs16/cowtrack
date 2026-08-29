@@ -7,9 +7,12 @@ import com.cowtrack.entity.Cow;
 import com.cowtrack.entity.FinancialRecord;
 import com.cowtrack.entity.ProductionRecord;
 import com.cowtrack.exception.ResourceNotFoundException;
+import com.cowtrack.entity.Farm;
 import com.cowtrack.repository.CowRepository;
+import com.cowtrack.repository.FarmRepository;
 import com.cowtrack.repository.FinancialRecordRepository;
 import com.cowtrack.repository.ProductionRecordRepository;
+import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.RecordsService;
 import com.cowtrack.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -29,20 +32,26 @@ public class RecordsServiceImpl implements RecordsService {
     private final ProductionRecordRepository productionRepository;
     private final FinancialRecordRepository financialRepository;
     private final CowRepository cowRepository;
+    private final FarmRepository farmRepository;
+    private final FarmContext farmContext;
     private final UserService userService;
 
     @Override
     public ProductionResponse recordProduction(ProductionRequest request) {
-        Cow cow = cowRepository.findById(request.getCowId())
+        Long farmId = farmContext.getCurrentFarmId();
+        Farm farm = farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Farm not found with id: " + farmId));
+
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, request.getCowId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Cow not found with id: " + request.getCowId()));
 
-        // One record per cow per day: recording twice updates rather than
-        // duplicating, which would otherwise double that day's totals.
         ProductionRecord record = productionRepository
                 .findByCow_CowIdAndRecordDate(cow.getCowId(), request.getRecordDate())
                 .orElseGet(ProductionRecord::new);
 
+        record.setFarm(farm);
         record.setCow(cow);
         record.setRecordDate(request.getRecordDate());
         record.setMilkLitres(request.getMilkLitres());
@@ -54,17 +63,25 @@ public class RecordsServiceImpl implements RecordsService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductionResponse> getProductionForCow(Long cowId) {
-        if (!cowRepository.existsById(cowId)) {
+        Long farmId = farmContext.getCurrentFarmId();
+        if (!cowRepository.findByFarmFarmIdAndCowId(farmId, cowId).isPresent()) {
             throw new ResourceNotFoundException("Cow not found with id: " + cowId);
         }
-        return productionRepository.findByCow_CowIdOrderByRecordDateDesc(cowId).stream()
+        return productionRepository.findByFarmFarmIdOrderByRecordDateDesc(farmId).stream()
+                .filter(r -> r.getCow().getCowId().equals(cowId))
                 .map(this::toResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Map<String, Object> recordFinancial(FinancialRequest request) {
+        Long farmId = farmContext.getCurrentFarmId();
+        Farm farm = farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Farm not found with id: " + farmId));
+
         FinancialRecord record = new FinancialRecord();
+        record.setFarm(farm);
         record.setUser(userService.getAuthenticatedUser());
         record.setEntryType(FinancialRecord.EntryType.valueOf(
                 request.getEntryType().toUpperCase()));
@@ -74,7 +91,7 @@ public class RecordsServiceImpl implements RecordsService {
         record.setRecordDate(request.getRecordDate());
 
         if (request.getCowId() != null) {
-            record.setCow(cowRepository.findById(request.getCowId())
+            record.setCow(cowRepository.findByFarmFarmIdAndCowId(farmId, request.getCowId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Cow not found with id: " + request.getCowId())));
         }
@@ -85,8 +102,8 @@ public class RecordsServiceImpl implements RecordsService {
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getFinancialsForCurrentUser() {
-        Long userId = userService.getAuthenticatedUser().getUserId();
-        return financialRepository.findByUser_UserIdOrderByRecordDateDesc(userId).stream()
+        Long farmId = farmContext.getCurrentFarmId();
+        return financialRepository.findByFarmFarmIdOrderByRecordDateDesc(farmId).stream()
                 .map(this::toMap)
                 .collect(Collectors.toList());
     }

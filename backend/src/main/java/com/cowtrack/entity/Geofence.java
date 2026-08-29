@@ -19,6 +19,10 @@ public class Geofence {
     @Column(name = "geofence_id")
     private Long geofenceId;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "farm_id", nullable = false)
+    private Farm farm;
+
     @OneToOne
     @JoinColumn(name = "cow_id", nullable = false, unique = true)
     private Cow cow;

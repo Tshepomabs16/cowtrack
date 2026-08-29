@@ -5,6 +5,7 @@ import com.cowtrack.dto.response.AlertResponse;
 import com.cowtrack.service.AlertService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -47,19 +48,21 @@ public class AlertController extends BaseController {
     }
 
     @PostMapping("/{alertId}/resolve")
+    @PreAuthorize("hasRole('FARMER') or hasRole('CARETAKER') or hasRole('ADMIN')")
     public ResponseEntity<?> markAlertAsResolved(@PathVariable Long alertId) {
         AlertResponse alert = alertService.markAsResolved(alertId);
         return success("Alert marked as resolved", alert);
     }
 
     @PostMapping("/cow/{cowId}/resolve-all")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> markAllAlertsAsResolved(@PathVariable Long cowId) {
         alertService.markAllAsResolved(cowId);
         return success("All alerts marked as resolved", null);
     }
 
-    // MANUAL ALERT CREATION (for testing)
     @PostMapping("/test/geofence-breach/{cowId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> testGeofenceBreachAlert(
             @PathVariable Long cowId,
             @RequestParam boolean isInside) {
@@ -68,6 +71,7 @@ public class AlertController extends BaseController {
     }
 
     @PostMapping("/test/no-signal/{cowId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> testNoSignalAlert(
             @PathVariable Long cowId,
             @RequestParam long hours) {
@@ -75,8 +79,8 @@ public class AlertController extends BaseController {
         return success("Test no signal alert created", null);
     }
 
-    /** Resolves every open alert. */
     @PutMapping("/read/all")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> resolveAll() {
         int resolved = alertService.resolveAllAlerts();
         return success("Resolved " + resolved + " alerts", resolved);
@@ -88,6 +92,7 @@ public class AlertController extends BaseController {
     }
 
     @DeleteMapping("/{alertId}")
+    @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> deleteAlert(@PathVariable Long alertId) {
         alertService.deleteAlert(alertId);
         return success("Alert deleted successfully", null);
