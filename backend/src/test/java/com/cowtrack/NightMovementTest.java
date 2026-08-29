@@ -1,6 +1,7 @@
 package com.cowtrack;
 
 import com.cowtrack.config.NightMovementProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.cowtrack.entity.*;
 import com.cowtrack.repository.*;
@@ -21,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -217,5 +219,34 @@ class NightMovementTest {
         reportPosition(-23.9045, 29.4689);
 
         assertThat(nightAlerts()).isEmpty();
+    }
+
+    /**
+     * Severity drives how urgently the alert is treated, so the mapping is pinned
+     * rather than left to be quietly downgraded. Night movement ranks with a
+     * boundary breach: both mean the animal is being taken now.
+     */
+    @Test
+    void nightMovementIsCritical() throws Exception {
+        existingPositionAt(-23.9045, 29.4689, 30);
+        reportPosition(-23.9125, 29.4689);
+
+        MvcResult result = mockMvc.perform(get("/api/alerts")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode alerts = objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+        JsonNode nightAlert = null;
+        for (JsonNode alert : alerts) {
+            if ("NIGHT_MOVEMENT".equals(alert.get("alertType").asText())) {
+                nightAlert = alert;
+            }
+        }
+
+        assertThat(nightAlert)
+                .withFailMessage("No night-movement alert was returned by the API")
+                .isNotNull();
+        assertThat(nightAlert.get("severity").asText()).isEqualTo("critical");
     }
 }

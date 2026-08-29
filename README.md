@@ -55,7 +55,7 @@ out of step with the data they summarise:
 
 | Field | Derived from |
 |---|---|
-| `AlertResponse.severity` | `alertType` — breach and collar removal are critical |
+| `AlertResponse.severity` | `alertType` — breach, collar removal and night movement are critical |
 | `AlertResponse.title` | `alertType`, as a readable heading |
 | `CowResponse.status` | active alerts, collar freshness, and vitals; a warning reading always wins |
 | `CowResponse.age` | `dateOfBirth` |

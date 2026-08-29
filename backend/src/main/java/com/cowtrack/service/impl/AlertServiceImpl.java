@@ -244,9 +244,13 @@ public class AlertServiceImpl implements AlertService {
             return "low";
         }
         return switch (alertType) {
-            case GEOFENCE_BREACH, DEVICE_REMOVED -> "critical";
+            // Sustained movement in the small hours is a theft in progress, not a
+            // curiosity: cattle rest at night, and the detection already requires
+            // enough distance to rule out shifting at a trough. It ranks with a
+            // boundary breach and a removed collar because it needs the same
+            // response, and on the same timescale.
+            case GEOFENCE_BREACH, DEVICE_REMOVED, NIGHT_MOVEMENT -> "critical";
             case NO_SIGNAL -> "high";
-            case NIGHT_MOVEMENT -> "medium";
         };
     }
 
