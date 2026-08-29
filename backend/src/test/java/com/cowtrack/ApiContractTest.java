@@ -116,6 +116,36 @@ class ApiContractTest {
     }
 
     /**
+     * The client resolves alerts with PUT. The controller accepted only POST, so
+     * this returned 405 and resolving a single alert from the UI had never
+     * worked - a mismatch no test caught because none exercised the verb.
+     */
+    @Test
+    void alertsAreResolvedWithTheVerbTheClientSends() throws Exception {
+        mockMvc.perform(post("/api/alerts/test/geofence-breach/" + cowId + "?isInside=false")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        MvcResult list = mockMvc.perform(get("/api/alerts").header("Authorization", bearer()))
+                .andExpect(status().isOk())
+                .andReturn();
+        long alertId = objectMapper.readTree(list.getResponse().getContentAsString())
+                .get("data").get(0).get("alertId").asLong();
+
+        mockMvc.perform(put("/api/alerts/" + alertId + "/resolve")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.isResolved").value(true));
+
+        mockMvc.perform(put("/api/alerts/cow/" + cowId + "/resolve-all")
+                        .header("Authorization", bearer()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(put("/api/alerts/read/all").header("Authorization", bearer()))
+                .andExpect(status().isOk());
+    }
+
+    /**
      * Framework-level request faults must report the caller's mistake, not a
      * server fault. Each of these previously surfaced as a 500.
      */

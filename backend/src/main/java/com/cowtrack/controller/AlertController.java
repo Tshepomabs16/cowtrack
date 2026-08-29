@@ -47,14 +47,21 @@ public class AlertController extends BaseController {
         return success(alerts);
     }
 
-    @PostMapping("/{alertId}/resolve")
+    /*
+     * All three resolve operations are PUT. Resolving is idempotent - applying it
+     * twice leaves the same state - and the client already sent PUT to each of
+     * them. Two accepted only POST, so resolving a single alert from the UI
+     * returned 405 and had never worked.
+     */
+
+    @PutMapping("/{alertId}/resolve")
     @PreAuthorize("hasRole('FARMER') or hasRole('CARETAKER') or hasRole('ADMIN')")
     public ResponseEntity<?> markAlertAsResolved(@PathVariable Long alertId) {
         AlertResponse alert = alertService.markAsResolved(alertId);
         return success("Alert marked as resolved", alert);
     }
 
-    @PostMapping("/cow/{cowId}/resolve-all")
+    @PutMapping("/cow/{cowId}/resolve-all")
     @PreAuthorize("hasRole('FARMER') or hasRole('ADMIN')")
     public ResponseEntity<?> markAllAlertsAsResolved(@PathVariable Long cowId) {
         alertService.markAllAsResolved(cowId);

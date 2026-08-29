@@ -61,7 +61,12 @@ public class ReminderController extends BaseController {
         return success("Reminder updated successfully", reminder);
     }
 
-    @PostMapping("/{reminderId}/complete")
+    /**
+     * PUT, matching the client and the resolve operations on alerts: completing
+     * is idempotent. This accepted only POST, so completing a reminder from the
+     * UI returned 405 and had never worked.
+     */
+    @PutMapping("/{reminderId}/complete")
     public ResponseEntity<?> markReminderAsCompleted(@PathVariable Long reminderId) {
         ReminderResponse reminder = reminderService.markAsCompleted(reminderId);
         return success("Reminder marked as completed", reminder);

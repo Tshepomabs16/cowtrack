@@ -159,12 +159,6 @@ public class CowServiceImpl implements CowService {
     }
 
     @Override
-    public Cow getCowEntity(Long cowId) {
-        return cowRepository.findById(cowId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
-    }
-
-    @Override
     public List<CowResponse> searchCows(String query) {
         Long farmId = farmContext.getCurrentFarmId();
         return cowRepository.findByFarmFarmIdAndNameContainingIgnoreCase(farmId, query).stream()
