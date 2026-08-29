@@ -118,10 +118,15 @@ The alerting is half-wired, in a way that is easy to miss:
   The trap is worth naming: absence of a signal cannot be observed from the
   signal. Detecting silence requires a timer.
 
-- **Night-movement detection still only writes to the log.** It sits in
-  `checkOtherAlerts`, is correctly event-driven, and computes the distance moved
-  — but never raises an alert, so `NIGHT_MOVEMENT` remains an alert type nothing
-  produces.
+- **Night-movement detection now raises alerts.** It stays event-driven, which
+  is correct — movement is only visible in positions that arrive — and is
+  configurable through `cowtrack.monitoring.night-movement.*`. One alert per
+  animal per night, so a collar reporting every few minutes does not produce an
+  alert per position.
+
+  The night window is interpreted in a single configured zone. That belongs on
+  the farm: a deployment serving farms in different timezones would call the
+  same clock hour "night" for all of them.
 
 The one scheduled job that exists, `ReminderServiceImpl.checkAndGenerateReminders`,
 runs daily at 08:00 and only writes to the log. Its own comments say notifications
@@ -130,8 +135,7 @@ are "what you would do in production".
 **What to do**
 - Define a device ingestion API: batched, authenticated per device, tolerant of
   out-of-order and delayed readings (collars buffer when out of coverage).
-- Add a scheduled sweep for silent collars and anomalous movement, and delete
-  `checkOtherAlerts` or wire it in.
+- Move the night window onto the farm, so it is correct across timezones.
 - Make reminders actually notify.
 - Model the device itself: a collar has a battery level, a firmware version and a
   last-seen time. A flat collar battery is an operational event a farmer needs.

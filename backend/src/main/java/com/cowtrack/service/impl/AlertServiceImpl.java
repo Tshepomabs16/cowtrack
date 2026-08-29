@@ -141,6 +141,40 @@ public class AlertServiceImpl implements AlertService {
     }
 
     @Override
+    public boolean createNightMovementAlert(Long cowId, double metres, LocalDateTime nightStartedAt) {
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
+
+        // One alert per animal per night. This runs on every incoming position,
+        // so a collar reporting every few minutes would raise dozens for a single
+        // event. Scoped to the current night rather than "any open alert" so an
+        // uncleared alert from a previous night does not mask tonight's.
+        boolean alreadyRaisedTonight = alertRepository
+                .findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cowId).stream()
+                .filter(open -> open.getAlertType() == Alert.AlertType.NIGHT_MOVEMENT)
+                .anyMatch(open -> !open.getCreatedAt().isBefore(nightStartedAt));
+
+        if (alreadyRaisedTonight) {
+            log.debug("Night movement already reported for cow {} tonight", cow.getTagId());
+            return false;
+        }
+
+        Alert alert = new Alert();
+        alert.setCow(cow);
+        alert.setAlertType(Alert.AlertType.NIGHT_MOVEMENT);
+        alert.setMessage(alertMessageGenerator.generateNightMovementMessage(cow, metres));
+        alert.setIsResolved(false);
+        alert.setCreatedAt(LocalDateTime.now());
+        alert.setFarm(farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
+
+        alertRepository.save(alert);
+        log.warn("Created night movement alert for cow {}: {} metres", cow.getTagId(), Math.round(metres));
+        return true;
+    }
+
+    @Override
     public boolean createNoSignalAlert(Long farmId, Long cowId, long hoursWithoutSignal) {
         Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));

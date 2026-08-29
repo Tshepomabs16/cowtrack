@@ -41,10 +41,23 @@ public class AlertMessageGenerator {
         return days + " days";
     }
 
-    public String generateNightMovementMessage(Cow cow) {
-        return String.format("Cow '%s' (Tag: %s) is moving during night hours",
+    /**
+     * Carries the distance, because that is what tells a farmer whether to get
+     * out of bed: cattle shuffling around a trough read very differently from an
+     * animal that has covered half a kilometre in the dark.
+     */
+    public String generateNightMovementMessage(Cow cow, double metres) {
+        return String.format("Cow '%s' (Tag: %s) moved %s during night hours",
                 cow.getName(),
-                cow.getTagId());
+                cow.getTagId(),
+                describeDistance(metres));
+    }
+
+    private String describeDistance(double metres) {
+        if (metres >= 1000) {
+            return String.format("%.1f km", metres / 1000);
+        }
+        return Math.round(metres) + " m";
     }
 
     public String generateDeviceRemovedMessage(Cow cow) {

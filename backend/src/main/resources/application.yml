@@ -59,6 +59,17 @@ cowtrack:
       threshold: ${NO_SIGNAL_THRESHOLD:24h}
       cron: ${NO_SIGNAL_CRON:0 0 * * * *}
       ignore-never-reported: true
+    night-movement:
+      # Sustained movement in the small hours is the signature of an animal
+      # being driven off. The distance must clear ordinary shuffling at a trough.
+      enabled: ${NIGHT_MOVEMENT_ENABLED:true}
+      start-hour: 22
+      end-hour: 5
+      threshold-metres: 100
+      window: 1h
+      # Interpreted in this zone. Belongs on the farm once one deployment serves
+      # farms in more than one timezone.
+      zone: ${NIGHT_MOVEMENT_ZONE:Africa/Johannesburg}
   storage:
     # Where uploaded images are written. Override for a deployed environment.
     upload-dir: ${UPLOAD_DIR:./uploads}

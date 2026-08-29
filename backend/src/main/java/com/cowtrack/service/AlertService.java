@@ -3,6 +3,7 @@ package com.cowtrack.service;
 import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AlertService {
@@ -28,6 +29,21 @@ public interface AlertService {
      *         this animal and the call was therefore a no-op
      */
     boolean createNoSignalAlert(Long farmId, Long cowId, long hoursWithoutSignal);
+
+    /**
+     * Raises a night-movement alert for an animal that covered {@code metres}
+     * during the night window.
+     *
+     * <p>Suppressed if one is already open for this animal from the current
+     * night: the check runs on every incoming position, so a collar reporting
+     * every few minutes would otherwise raise dozens of alerts for one event.
+     *
+     * @param nightStartedAt beginning of the current night window, used to decide
+     *                       whether an existing open alert belongs to tonight or
+     *                       to an earlier night nobody has cleared
+     * @return true if an alert was created
+     */
+    boolean createNightMovementAlert(Long cowId, double metres, LocalDateTime nightStartedAt);
 
     /** Resolves every open alert across the herd. */
     int resolveAllAlerts();

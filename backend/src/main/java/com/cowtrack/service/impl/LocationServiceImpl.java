@@ -1,5 +1,6 @@
 package com.cowtrack.service.impl;
 
+import com.cowtrack.config.NightMovementProperties;
 import com.cowtrack.dto.request.LocationRequest;
 import com.cowtrack.dto.response.LocationResponse;
 import com.cowtrack.entity.*;
@@ -36,6 +37,7 @@ public class LocationServiceImpl implements LocationService {
     private final AlertService alertService;
     private final LocationMapper locationMapper;
     private final GeofenceCalculator geofenceCalculator;
+    private final NightMovementProperties nightMovementProperties;
 
     @Override
     public LocationResponse recordLocation(LocationRequest request) {
@@ -190,31 +192,74 @@ public class LocationServiceImpl implements LocationService {
      * {@link com.cowtrack.service.CollarMonitoringService}.
      */
     private void checkOtherAlerts(Cow cow) {
+        checkNightMovement(cow);
+    }
+
+    /**
+     * Sustained movement in the small hours, which is the signature of an animal
+     * being driven off rather than grazing.
+     *
+     * <p>Correctly event-driven, unlike the no-signal check that used to sit
+     * beside it: movement can only be seen in positions that arrive. A collar
+     * that goes silent instead is the sweep's problem.
+     */
+    private void checkNightMovement(Cow cow) {
+        if (!nightMovementProperties.isEnabled() || !isNightNow()) {
+            return;
+        }
+
         Long farmId = farmContext.getCurrentFarmId();
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime windowStart = now.minus(nightMovementProperties.getWindow());
 
-        int currentHour = LocalDateTime.now().getHour();
-        if (currentHour >= 22 || currentHour < 5) {
-            LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
-            List<LocationRecord> nightLocations = locationRecordRepository.findByFarmIdAndCowIdAndTimeRange(
-                    farmId, cow.getCowId(), oneHourAgo, now);
+        List<LocationRecord> nightLocations = locationRecordRepository.findByFarmIdAndCowIdAndTimeRange(
+                farmId, cow.getCowId(), windowStart, now);
 
-            if (nightLocations.size() >= 2) {
-                double distanceMoved = 0;
-                for (int i = 1; i < nightLocations.size(); i++) {
-                    distanceMoved += geofenceCalculator.calculateDistance(
-                            nightLocations.get(i - 1).getLatitude(),
-                            nightLocations.get(i - 1).getLongitude(),
-                            nightLocations.get(i).getLatitude(),
-                            nightLocations.get(i).getLongitude()
-                    );
-                }
-
-                if (distanceMoved > 100) {
-                    log.info("Night movement detected for cow {}: {} meters", cow.getTagId(), distanceMoved);
-                }
-            }
+        if (nightLocations.size() < 2) {
+            return;
         }
+
+        // Path length, not displacement: an animal driven in a circle has still
+        // been driven. The query returns newest-first, which does not matter to
+        // a sum of absolute distances.
+        double distanceMoved = 0;
+        for (int i = 1; i < nightLocations.size(); i++) {
+            distanceMoved += geofenceCalculator.calculateDistance(
+                    nightLocations.get(i - 1).getLatitude(),
+                    nightLocations.get(i - 1).getLongitude(),
+                    nightLocations.get(i).getLatitude(),
+                    nightLocations.get(i).getLongitude()
+            );
+        }
+
+        if (distanceMoved > nightMovementProperties.getThresholdMetres()) {
+            alertService.createNightMovementAlert(cow.getCowId(), distanceMoved, currentNightStart());
+        }
+    }
+
+    private boolean isNightNow() {
+        int hour = LocalDateTime.now(nightMovementProperties.getZone()).getHour();
+        int start = nightMovementProperties.getStartHour();
+        int end = nightMovementProperties.getEndHour();
+
+        // The window normally wraps midnight (22:00 to 05:00), so the two cases
+        // are not the same comparison.
+        return start > end
+                ? hour >= start || hour < end
+                : hour >= start && hour < end;
+    }
+
+    /**
+     * When the current night window opened, used to decide whether an existing
+     * open alert belongs to tonight. Before the end hour we are past midnight, so
+     * the window opened yesterday.
+     */
+    private LocalDateTime currentNightStart() {
+        LocalDateTime local = LocalDateTime.now(nightMovementProperties.getZone());
+        int start = nightMovementProperties.getStartHour();
+
+        LocalDateTime tonight = local.withHour(start).withMinute(0).withSecond(0).withNano(0);
+        return local.getHour() < start ? tonight.minusDays(1) : tonight;
     }
 
     @Override
