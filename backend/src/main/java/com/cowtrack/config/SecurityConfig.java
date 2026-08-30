@@ -50,6 +50,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/health", "/api/ping", "/api/info").permitAll()
+                        // Collars have no interactive user and cannot hold a JWT.
+                        // Exempt from the token chain, but NOT unauthenticated:
+                        // DeviceAuthenticator checks the key inside the service and
+                        // rejects with 401 exactly as the filter would.
+                        .requestMatchers("/api/ingest/**").permitAll()
                         // Readiness/liveness probes must be reachable while auth is
                         // down or the orchestrator would kill an already-unhealthy box.
                         .requestMatchers("/actuator/health/**").permitAll()

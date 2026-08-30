@@ -42,6 +42,7 @@ public class Alert {
         GEOFENCE_BREACH,
         NO_SIGNAL,
         NIGHT_MOVEMENT,
-        DEVICE_REMOVED
+        DEVICE_REMOVED,
+        LOW_BATTERY
     }
 }

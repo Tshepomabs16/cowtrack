@@ -43,6 +43,12 @@ public interface AlertService {
      *                       to an earlier night nobody has cleared
      * @return true if an alert was created
      */
+    /**
+     * Raises a low-battery alert for the collar fitted to an animal. Suppressed
+     * while one is already open, since the charge only goes one way.
+     */
+    boolean createLowBatteryAlert(Long cowId, String serialNumber, Integer batteryPercent);
+
     boolean createNightMovementAlert(Long cowId, double metres, LocalDateTime nightStartedAt);
 
     /** Resolves every open alert across the herd. */

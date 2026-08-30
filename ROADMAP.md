@@ -98,13 +98,22 @@ As it stands the map is a database viewer that needs a manual refresh.
 
 ---
 
-### 4. Nothing feeds the system
+### 4. Ingestion exists; hardware integration does not
 
-**Severity: high. Without this a human is the sensor.**
+**Severity: reduced. A collar can now feed the system directly.**
 
-There is no device API, no MQTT broker, no LoRaWAN or GSM collar integration, and no
-job that pulls from hardware. Every GPS fix, temperature and heart rate has to be
-POSTed by hand.
+`POST /api/ingest/readings` accepts batches from a registered collar, which
+authenticates with a long-lived key rather than a JWT. It tolerates what field
+hardware actually does: buffering while out of coverage, resending anything it
+was not acknowledged for, reporting out of order, and keeping poor time. Battery,
+firmware and last-contact are tracked per device, and a collar crossing the
+low-battery threshold raises an alert — a dying collar being the precursor to a
+silent one.
+
+**Still missing:** anything that speaks to real hardware. There is no MQTT broker,
+no LoRaWAN network-server integration and no vendor adapter, so a collar has to be
+able to make an HTTPS POST in this exact shape. Most cannot. A real deployment
+needs an adapter per collar vendor, or a gateway that translates.
 
 The alerting is half-wired, in a way that is easy to miss:
 

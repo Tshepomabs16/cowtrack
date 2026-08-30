@@ -60,6 +60,15 @@ public class AlertMessageGenerator {
         return Math.round(metres) + " m";
     }
 
+    /** Names the collar as well as the animal: it is the collar that needs swapping. */
+    public String generateLowBatteryMessage(Cow cow, String serialNumber, Integer batteryPercent) {
+        return String.format("Collar %s on '%s' (Tag: %s) is at %d%% battery",
+                serialNumber,
+                cow.getName(),
+                cow.getTagId(),
+                batteryPercent == null ? 0 : batteryPercent);
+    }
+
     public String generateDeviceRemovedMessage(Cow cow) {
         return String.format("Possible device removal detected for cow '%s' (Tag: %s)",
                 cow.getName(),

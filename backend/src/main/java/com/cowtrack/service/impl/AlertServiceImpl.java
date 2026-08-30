@@ -141,6 +141,37 @@ public class AlertServiceImpl implements AlertService {
     }
 
     @Override
+    public boolean createLowBatteryAlert(Long cowId, String serialNumber, Integer batteryPercent) {
+        Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
+
+        // Raised on the way down only, so a collar sitting flat and uploading all
+        // day does not bury the rest of the feed.
+        boolean alreadyOpen = alertRepository
+                .findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cowId).stream()
+                .anyMatch(open -> open.getAlertType() == Alert.AlertType.LOW_BATTERY);
+
+        if (alreadyOpen) {
+            return false;
+        }
+
+        Alert alert = new Alert();
+        alert.setCow(cow);
+        alert.setAlertType(Alert.AlertType.LOW_BATTERY);
+        alert.setMessage(alertMessageGenerator.generateLowBatteryMessage(cow, serialNumber, batteryPercent));
+        alert.setIsResolved(false);
+        alert.setCreatedAt(LocalDateTime.now());
+        alert.setFarm(farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
+
+        alertRepository.save(alert);
+        log.warn("Created low battery alert for collar {} on cow {}: {}%",
+                serialNumber, cow.getTagId(), batteryPercent);
+        return true;
+    }
+
+    @Override
     public boolean createNightMovementAlert(Long cowId, double metres, LocalDateTime nightStartedAt) {
         Long farmId = farmContext.getCurrentFarmId();
         Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
@@ -235,6 +266,7 @@ public class AlertServiceImpl implements AlertService {
             case GEOFENCE_BREACH -> "Geofence Breach";
             case NO_SIGNAL -> "GPS Signal Lost";
             case NIGHT_MOVEMENT -> "Unusual Night Movement";
+            case LOW_BATTERY -> "Collar Battery Low";
             case DEVICE_REMOVED -> "Collar Removed";
         };
     }
@@ -250,7 +282,11 @@ public class AlertServiceImpl implements AlertService {
             // boundary breach and a removed collar because it needs the same
             // response, and on the same timescale.
             case GEOFENCE_BREACH, DEVICE_REMOVED, NIGHT_MOVEMENT -> "critical";
+            // A dying collar is the precursor to a silent one, but it is a
+            // maintenance job rather than an emergency: there is still time to
+            // walk out and swap it.
             case NO_SIGNAL -> "high";
+            case LOW_BATTERY -> "medium";
         };
     }
 
