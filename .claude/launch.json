@@ -1,11 +1,20 @@
 {
   "version": "0.0.1",
-  "comment": "The backend reads DB_PASSWORD from the environment, as application.yml does. Export it in the shell you launch from; never put it in this file, which is committed.",
+  "comment": "The backend reads DB_PASSWORD from the environment, as application.yml does. Export it in the shell you launch from; never put it in this file, which is committed. Use cowtrack-backend-inmemory to run against a throwaway H2 database instead, with no credentials and no risk to real data.",
   "configurations": [
     {
       "name": "cowtrack-backend",
       "runtimeExecutable": "sh",
       "runtimeArgs": ["-c", "cd backend && ./mvnw spring-boot:run"],
+      "port": 8081
+    },
+    {
+      "name": "cowtrack-backend-inmemory",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd backend && ./mvnw spring-boot:run -Dspring-boot.run.useTestClasspath=true -Dspring-boot.run.profiles=test"
+      ],
       "port": 8081
     },
     {
