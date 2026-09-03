@@ -6,6 +6,9 @@ import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.service.CowService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -38,10 +41,28 @@ public class CowController extends BaseController {
         return success(cow);
     }
 
+    /**
+     * One page of the herd.
+     *
+     * <p>Paged rather than complete. Each animal in the response carries derived
+     * fields that cost a query apiece, so an unpaged herd was expensive twice
+     * over — in rows returned and in queries run to build them.
+     *
+     * <p>Callers that need every animal rather than a page of them want
+     * {@code /options}, which returns the three fields a picker needs.
+     */
     @GetMapping
-    public ResponseEntity<?> getAllCows() {
-        List<CowResponse> cows = cowService.getAllCows();
-        return success(cows);
+    public ResponseEntity<?> getCows(
+            @RequestParam(required = false) String search,
+            @PageableDefault(size = 25, sort = "cowId", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return success(cowService.getCows(search, pageable));
+    }
+
+    /** Every animal as id, name and tag, for dropdowns and pickers. */
+    @GetMapping("/options")
+    public ResponseEntity<?> getCowOptions() {
+        return success(cowService.getCowOptions());
     }
 
     @GetMapping("/caretaker/{caretakerId}")

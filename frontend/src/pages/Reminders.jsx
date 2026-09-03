@@ -40,7 +40,7 @@ const Reminders = () => {
     try {
       const [reminderResponse, cowResponse] = await Promise.all([
         remindersAPI.getAll(),
-        cowsAPI.getAll(),
+        cowsAPI.getOptions(),
       ]);
       setReminders(Array.isArray(reminderResponse.data) ? reminderResponse.data : []);
       setCows(Array.isArray(cowResponse.data) ? cowResponse.data : []);

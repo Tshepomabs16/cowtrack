@@ -55,6 +55,12 @@ public class SecurityConfig {
                         // DeviceAuthenticator checks the key inside the service and
                         // rejects with 401 exactly as the filter would.
                         .requestMatchers("/api/ingest/**").permitAll()
+                        // EventSource cannot send an Authorization header, so the
+                        // stream authenticates by redeeming a short-lived ticket
+                        // inside the controller. Only the stream itself: issuing a
+                        // ticket is an ordinary authenticated request, and must
+                        // stay one or the ticket would be worth nothing.
+                        .requestMatchers(HttpMethod.GET, "/api/realtime/stream").permitAll()
                         // Readiness/liveness probes must be reachable while auth is
                         // down or the orchestrator would kill an already-unhealthy box.
                         .requestMatchers("/actuator/health/**").permitAll()

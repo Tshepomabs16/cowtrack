@@ -6,11 +6,14 @@ import com.cowtrack.dto.response.IngestResult;
 import com.cowtrack.entity.*;
 import com.cowtrack.exception.BusinessException;
 import com.cowtrack.repository.*;
+import com.cowtrack.realtime.EventTypes;
+import com.cowtrack.realtime.RealtimePublisher;
 import com.cowtrack.security.DeviceAuthenticator;
 import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.AlertService;
 import com.cowtrack.service.DeviceIngestionService;
 import com.cowtrack.service.LocationService;
+import com.cowtrack.service.mapper.LocationMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -63,6 +66,8 @@ public class DeviceIngestionServiceImpl implements DeviceIngestionService {
     private final LocationService locationService;
     private final AlertService alertService;
     private final FarmContext farmContext;
+    private final LocationMapper locationMapper;
+    private final RealtimePublisher realtimePublisher;
 
     @Override
     @Transactional
@@ -102,16 +107,25 @@ public class DeviceIngestionServiceImpl implements DeviceIngestionService {
                 store(ordered.get(i), i, cow, farm, result);
             }
 
-            LocalDateTime latestAfter = locationRepository
-                    .findLatestByFarmIdAndCowId(farm.getFarmId(), cow.getCowId())
-                    .map(LocationRecord::getRecordedAt)
-                    .orElse(null);
+            Optional<LocationRecord> newest = locationRepository
+                    .findLatestByFarmIdAndCowId(farm.getFarmId(), cow.getCowId());
+            LocalDateTime latestAfter = newest.map(LocationRecord::getRecordedAt).orElse(null);
 
             // Only evaluate when the animal's newest position actually moved on.
             // A backfill of older readings must not raise a geofence breach for a
             // boundary the animal crossed and came back from days ago.
             if (advanced(latestBefore, latestAfter)) {
                 result.setAlertsEvaluated(true);
+
+                // One push per batch, carrying where the animal is now, rather
+                // than one per stored reading. A collar returning from a week out
+                // of coverage uploads hundreds of readings at once; replaying all
+                // of them would flood every open map with a track the farmer has
+                // no use for, to arrive at the same marker position.
+                newest.ifPresent(record -> realtimePublisher.publish(
+                        farm.getFarmId(), EventTypes.LOCATION_UPDATE,
+                        locationMapper.toResponse(record)));
+
                 evaluateAlerts(cow);
             }
 

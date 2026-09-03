@@ -1,7 +1,9 @@
 package com.cowtrack.service.impl;
 
+import com.cowtrack.dto.common.PaginatedResponse;
 import com.cowtrack.dto.request.BulkCowUpdateRequest;
 import com.cowtrack.dto.request.CowRequest;
+import com.cowtrack.dto.response.CowOptionResponse;
 import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.entity.Cow;
 import com.cowtrack.entity.Farm;
@@ -16,6 +18,7 @@ import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.CowService;
 import com.cowtrack.service.mapper.CowMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -91,10 +94,24 @@ public class CowServiceImpl implements CowService {
     }
 
     @Override
-    public List<CowResponse> getAllCows() {
+    public PaginatedResponse<CowResponse> getCows(String search, Pageable pageable) {
+        Long farmId = farmContext.getCurrentFarmId();
+
+        // Blank is not a search. Treated as one it would match on '%%', which is
+        // harmless, but the intent reads better as "no filter supplied".
+        String term = (search == null || search.isBlank()) ? null : search.trim();
+
+        return PaginatedResponse.from(
+                cowRepository.findPageForFarm(farmId, term, pageable),
+                this::getCowResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CowOptionResponse> getCowOptions() {
         Long farmId = farmContext.getCurrentFarmId();
         return cowRepository.findByFarmFarmId(farmId).stream()
-                .map(this::getCowResponse)
+                .map(cow -> new CowOptionResponse(cow.getCowId(), cow.getName(), cow.getTagId()))
                 .collect(Collectors.toList());
     }
 

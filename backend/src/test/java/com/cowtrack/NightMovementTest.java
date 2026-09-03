@@ -236,7 +236,8 @@ class NightMovementTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode alerts = objectMapper.readTree(result.getResponse().getContentAsString()).get("data");
+        JsonNode alerts = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("content");
         JsonNode nightAlert = null;
         for (JsonNode alert : alerts) {
             if ("NIGHT_MOVEMENT".equals(alert.get("alertType").asText())) {

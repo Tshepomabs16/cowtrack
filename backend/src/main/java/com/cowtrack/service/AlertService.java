@@ -1,13 +1,23 @@
 package com.cowtrack.service;
 
+import com.cowtrack.dto.common.PaginatedResponse;
 import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AlertService {
-    List<AlertResponse> getAllAlerts();
+
+    /**
+     * One page of the farm's alerts, newest first.
+     *
+     * <p>Replaces an unpaged listing. Alerts are resolved rather than deleted,
+     * so the table only grows, and the notification bell fetched all of it on
+     * every page load.
+     */
+    PaginatedResponse<AlertResponse> getAlerts(boolean unresolvedOnly, Pageable pageable);
     List<AlertResponse> getAlertsByCow(Long cowId);
     List<AlertResponse> getActiveAlerts();
     AlertResponse markAsResolved(Long alertId);

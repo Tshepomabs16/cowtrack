@@ -106,11 +106,14 @@ class FarmIsolationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode cows = objectMapper.readTree(result.getResponse().getContentAsString())
+        JsonNode page = objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data");
-        assertThat(cows.isArray()).isTrue();
+        assertThat(page.get("content").isArray()).isTrue();
         // Farmer B has no cows of their own
-        assertThat(cows.size()).isEqualTo(0);
+        assertThat(page.get("content")).isEmpty();
+        // The total has to be scoped as well as the page. A page can be empty
+        // while the count still reports another farm's herd, which leaks its size.
+        assertThat(page.get("totalItems").asLong()).isZero();
     }
 
     @Test
@@ -142,9 +145,11 @@ class FarmIsolationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode alerts = objectMapper.readTree(result.getResponse().getContentAsString())
+        JsonNode page = objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data");
-        assertThat(alerts.isArray()).isTrue();
+        assertThat(page.get("content").isArray()).isTrue();
+        assertThat(page.get("content")).isEmpty();
+        assertThat(page.get("totalItems").asLong()).isZero();
     }
 
     @Test
@@ -166,10 +171,11 @@ class FarmIsolationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        JsonNode cows = objectMapper.readTree(result.getResponse().getContentAsString())
+        JsonNode page = objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("data");
-        assertThat(cows.size()).isEqualTo(1);
-        assertThat(cows.get(0).get("name").asText()).isEqualTo("Alpha");
+        assertThat(page.get("content").size()).isEqualTo(1);
+        assertThat(page.get("content").get(0).get("name").asText()).isEqualTo("Alpha");
+        assertThat(page.get("totalItems").asLong()).isEqualTo(1);
     }
 
     @Test

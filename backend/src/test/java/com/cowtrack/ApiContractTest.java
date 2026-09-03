@@ -130,7 +130,7 @@ class ApiContractTest {
                 .andExpect(status().isOk())
                 .andReturn();
         long alertId = objectMapper.readTree(list.getResponse().getContentAsString())
-                .get("data").get(0).get("alertId").asLong();
+                .get("data").get("content").get(0).get("alertId").asLong();
 
         mockMvc.perform(put("/api/alerts/" + alertId + "/resolve")
                         .header("Authorization", bearer()))

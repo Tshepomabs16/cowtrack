@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "comment": "The backend reads DB_PASSWORD from the environment, as application.yml does. Export it in the shell you launch from; never put it in this file, which is committed.",
+  "configurations": [
+    {
+      "name": "cowtrack-backend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd backend && ./mvnw spring-boot:run"],
+      "port": 8081
+    },
+    {
+      "name": "cowtrack-frontend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd frontend && BROWSER=none npm start"],
+      "port": 3000
+    }
+  ]
+}

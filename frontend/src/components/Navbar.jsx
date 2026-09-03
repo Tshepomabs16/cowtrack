@@ -13,6 +13,7 @@ import {
 import { GiCow } from 'react-icons/gi';
 import { useTheme } from '../context/ThemeContext';
 import { alertsAPI } from '../services/api';
+import { realtimeService, EVENTS } from '../services/realtime';
 import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
@@ -50,8 +51,11 @@ const Navbar = () => {
 
   const loadAlerts = useCallback(async () => {
     try {
-      const response = await alertsAPI.getAll();
-      const alerts = Array.isArray(response.data) ? response.data : [];
+      // The bell shows recent alerts, so it takes one page rather than every
+      // alert the farm has ever raised.
+      const response = await alertsAPI.getPage({ size: 20 });
+      const content = response.data?.content;
+      const alerts = Array.isArray(content) ? content : [];
       setNotifications(alerts.map(alert => ({
         id: alert.alertId,
         title: alert.title || 'Alert',
@@ -66,6 +70,26 @@ const Navbar = () => {
   }, []);
 
   useEffect(() => { loadAlerts(); }, [loadAlerts]);
+
+  // The bell is on every page, so this is where an alert reaches a farmer who is
+  // not looking at the alerts list. Without it the count only moved on reload.
+  useEffect(() => {
+    const handleNewAlert = (alert) => {
+      setNotifications(previous => {
+        if (previous.some(item => item.id === alert.alertId)) return previous;
+        return [{
+          id: alert.alertId,
+          title: alert.title || 'Alert',
+          message: alert.message,
+          time: relativeTime(alert.createdAt),
+          unread: !alert.isResolved,
+        }, ...previous];
+      });
+    };
+
+    realtimeService.on(EVENTS.NEW_ALERT, handleNewAlert);
+    return () => realtimeService.off(EVENTS.NEW_ALERT, handleNewAlert);
+  }, []);
 
   const unreadCount = notifications.filter(n => n.unread).length;
 

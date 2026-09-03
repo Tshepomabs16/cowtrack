@@ -4,6 +4,9 @@ import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
 import com.cowtrack.service.AlertService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +20,18 @@ public class AlertController extends BaseController {
 
     private final AlertService alertService;
 
+    /**
+     * One page of the farm's alerts, newest first.
+     *
+     * <p>{@code unresolvedOnly} rather than a general status filter: resolved
+     * versus unresolved is the only distinction the schema actually records.
+     */
     @GetMapping
-    public ResponseEntity<?> getAllAlerts() {
-        List<AlertResponse> alerts = alertService.getAllAlerts();
-        return success(alerts);
+    public ResponseEntity<?> getAlerts(
+            @RequestParam(defaultValue = "false") boolean unresolvedOnly,
+            @PageableDefault(size = 25, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return success(alertService.getAlerts(unresolvedOnly, pageable));
     }
 
     @GetMapping("/active")

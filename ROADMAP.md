@@ -77,24 +77,41 @@ pull request.
 
 ---
 
-### 3. "Real-time tracking" is not real-time
+### 3. Real-time tracking — done, over SSE rather than WebSockets
 
-**Severity: high — it is the product's core claim.**
+**Severity: closed.**
 
-The pitch is live cattle tracking. There is no WebSocket support on the classpath.
-`frontend/src/services/websocket.js` exists and connects to nothing;
-`REACT_APP_WS_URL` points at a port with no server behind it. The Live Map performs a
-single fetch on mount and never updates again.
+Positions and alerts are now pushed. `GET /api/realtime/stream` is a server-sent
+event stream; `SseHub` holds the open connections grouped by farm and fans events
+out to one farm's subscribers only.
 
-As it stands the map is a database viewer that needs a manual refresh.
+Server-sent events rather than the WebSocket originally proposed. Everything on
+this channel travels one way, which is the case SSE exists for: no dependency
+added on either side, reconnection is the browser's job, and — the reason that
+decided it — the stream is an ordinary HTTP GET, so it passes through the same
+security filter chain and the same farm scoping as every other endpoint. A
+WebSocket upgrade bypasses that chain and would have needed its own parallel
+authentication, which is precisely where this codebase's multi-tenant leaks have
+come from before.
 
-**What to do**
-- Add `spring-boot-starter-websocket` with STOMP, or Server-Sent Events if only
-  server-to-client push is needed — SSE is simpler and survives proxies better.
-- Push location updates, new alerts and vitals to subscribed clients.
-- Keep the existing fetch as the initial load and reconnect fallback.
+The one wrinkle: `EventSource` cannot set an `Authorization` header. The JWT is
+therefore exchanged, over a normal authenticated request, for a single-use ticket
+valid for about a minute (`StreamTicketService`). That is still a credential in a
+URL and so in access logs, but a bounded one.
 
-**Effort:** 2–3 days including client reconnection handling.
+Events are delivered after the transaction commits, so a client is never shown a
+position or alert that a rollback then erased. Delivery never fails the work that
+produced it — a closed browser tab must not fail a collar's upload.
+
+**Also fixed while here:** the Live Map rendered `<CattleMap />` with no props
+while keeping its own copy of the herd, so pushed updates landed in state nothing
+rendered. And the connection was opened by the map page, meaning alerts only
+arrived while that page happened to be showing and the notification bell never
+updated at all. The stream now belongs to the signed-in session, in `MainLayout`.
+
+**Still open:** no replay. A client that reconnects refetches the snapshot rather
+than receiving what it missed, which needs a persisted event log to do properly.
+Vitals are not pushed, only positions and alerts.
 
 ---
 
@@ -153,31 +170,49 @@ are "what you would do in production".
 
 ---
 
-### 5. No pagination anywhere
+### 5. Pagination — done for the endpoints that grow
 
-**Severity: medium now, high at scale.**
+**Severity: largely closed.**
 
-Every list endpoint calls `findAll()`. There is no `Pageable` or `Page<>` in the
-codebase. Fine at twelve animals; at five thousand with a year of GPS history it will
-return tens of megabytes.
+`GET /api/cows` and `GET /api/alerts` return a `PaginatedResponse` with real
+totals, and `spring.data.web.pageable.max-page-size` caps what one request may
+ask for — without a ceiling, `?size=1000000` turns a paginated endpoint straight
+back into an unpaginated one.
 
-`/api/locations/live` is worse than a large response — it iterates every cow and
-issues a separate query per animal to find the latest fix. A textbook N+1 that will
-take seconds on a real herd.
+`Cows.jsx` has working previous/next controls. It previously computed
+`totalPages` from the length of the array it had just been handed, so there was
+always exactly one page; the herd total now comes from the API. Search is applied
+by the database across the whole herd, on name **and** ear tag, rather than to
+the page in hand — a farmer should not have to already be on the right page for
+search to find an animal.
 
-`Cows.jsx` even holds pagination state (`page`, `limit`, `totalPages`) that the API
-cannot satisfy, so it computes `totalPages` from the length of the array it was
-given.
+**The N+1s were worse than recorded here.** Three of them:
 
-**What to do**
-- `Pageable` on every collection endpoint; return total counts.
-- Replace the live-locations loop with a single windowed query.
-- Add indexes on `(cow_id, recorded_at)`, `(cow_id, record_date)` and the alert
-  resolution flag.
-- Consider a partitioning or retention policy for location history — it is the table
+- `/api/locations/live` ran a position lookup per animal. Now one query.
+- The eager `LocationRecord.cow` association would have reinstated it invisibly:
+  JPQL does not fold an eager `ManyToOne` into the query, so Hibernate ran a
+  further select per animal to populate the name the response carries. Measured
+  at 31 queries for 30 head; a `JOIN FETCH` makes it 1.
+- `checkGeofenceViolations` loaded an animal's entire location history, on every
+  incoming position, to look at element 1 of it. It needs two rows.
+
+`LiveMapQueryCountTest` pins this by asserting the cost is the same for a herd of
+three and a herd of thirty, which is the property that matters, and separately
+that the count is exactly two.
+
+**Still open:**
+- `CowServiceImpl.getCowResponse` runs roughly six queries per animal for its
+  derived fields. Pagination bounds the damage to a page rather than a herd, but
+  a page of 25 is still ~150 queries. Batch-loading those per page would make it
+  a handful.
+- The alerts screen has no paging controls; it shows a bounded most-recent page.
+- No retention or partitioning policy for `location_records`, still the table
   that grows without limit.
-
-**Effort:** 2–3 days.
+- The cattle **status filter does not work at all** and never did — the dropdown
+  is not applied when rendering and the param it sends is ignored by the server.
+  Two of its five options can never match anything. Filtering it server-side is
+  awkward because status is derived in Java from three signals rather than
+  stored, so it cannot be a SQL predicate without duplicating that rule.
 
 ---
 
@@ -534,7 +569,7 @@ Ordered by how much later pain each prevents.
 |---|---|---|
 | Tenancy | Global queries | Farm-scoped, enforced centrally |
 | Schema | `ddl-auto: update` | Flyway migrations, `validate` |
-| Live data | One-shot fetch | WebSocket/SSE push |
+| Live data | SSE push, farm-scoped | Replay on reconnect; vitals too |
 | Ingestion | Manual POST | Device API, batched and offline-tolerant |
 | Lists | `findAll()` | Paginated and indexed |
 | Tests | 29 happy-path | Unit + authorisation + Testcontainers |
@@ -575,11 +610,17 @@ Non-negotiable, and blocking everything else.
 
 Make one vertical slice real end to end.
 
-1. Device ingestion API, tolerant of delay and duplication (gap 4)
-2. Scheduled sweeps for silent collars and anomalies; delete the dead code
-3. Real-time push (gap 3)
-4. Pagination and indexing (gap 5)
-5. Notifications that actually deliver — push, then SMS
+1. ~~Device ingestion API, tolerant of delay and duplication (gap 4)~~ — done
+2. ~~Scheduled sweeps for silent collars and anomalies~~ — done
+3. ~~Real-time push (gap 3)~~ — done, as SSE
+4. ~~Pagination and indexing (gap 5)~~ — done for cattle and alerts
+5. Notifications that actually deliver — push, then SMS **← the one left**
+
+`ReminderServiceImpl.checkAndGenerateReminders` still runs daily at 08:00 and
+only writes to the log. Everything else in the theft-detection slice now works
+end to end: a collar uploads, a breach is detected, an alert is raised and it
+appears on an open map within a second. It reaches nobody who is not already
+looking at the screen.
 
 Pick **theft detection** as the slice. It is the highest-value use case, it exercises
 ingestion, alerting, real-time and notification together, and it is nearly built.
