@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFetch } from '../hooks/useFetch';
 import { alertsAPI } from '../services/api';
-import { wsService, WS_EVENTS } from '../services/websocket';
+import { realtimeService, EVENTS } from '../services/realtime';
 import {
   FiBell,
   FiCheckCircle,
@@ -17,6 +17,22 @@ import {
 import { FaTemperatureHigh, FaHeartbeat, FaMapMarkerAlt } from 'react-icons/fa';
 import './Alerts.css';
 
+/**
+ * The alerts endpoint returns a page; this screen works on a plain list, so the
+ * envelope is unwrapped here.
+ *
+ * Declared outside the component on purpose: useFetch takes this as a dependency,
+ * and a function rebuilt on every render would refetch on every render.
+ *
+ * The size is a bound, not a page size — this screen has no paging controls, so
+ * it shows the most recent alerts and would need them to go further back.
+ */
+const fetchAlerts = (params) =>
+  alertsAPI.getPage(params).then(response => ({
+    ...response,
+    data: response.data?.content ?? [],
+  }));
+
 const Alerts = () => {
   const [filter, setFilter] = useState('all');
   const [selectedAlerts, setSelectedAlerts] = useState([]);
@@ -29,18 +45,23 @@ const Alerts = () => {
     error,
     refresh,
     setData: setAlerts
-  } = useFetch(alertsAPI.getAll, { status: 'active' }, [], true);
+  } = useFetch(fetchAlerts, { size: 100 }, [], true);
 
   // Listen for real-time alerts
   useEffect(() => {
     const handleNewAlert = (newAlert) => {
-      setAlerts(prev => [newAlert, ...prev]);
+      setAlerts(prev => {
+        // A push can race the fetch that already included it, so the same alert
+        // would otherwise appear twice with the same React key.
+        if (prev.some(alert => alert.alertId === newAlert.alertId)) return prev;
+        return [newAlert, ...prev];
+      });
     };
 
-    wsService.on(WS_EVENTS.NEW_ALERT, handleNewAlert);
+    realtimeService.on(EVENTS.NEW_ALERT, handleNewAlert);
 
     return () => {
-      wsService.off(WS_EVENTS.NEW_ALERT, handleNewAlert);
+      realtimeService.off(EVENTS.NEW_ALERT, handleNewAlert);
     };
   }, [setAlerts]);
 

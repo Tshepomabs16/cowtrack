@@ -3,6 +3,15 @@ server:
   port: 8081
 
 spring:
+  data:
+    web:
+      pageable:
+        # A ceiling on what one request may ask for. Without it ?size=1000000
+        # turns a paginated endpoint back into an unpaginated one, which is the
+        # problem paging it was meant to solve.
+        max-page-size: 200
+        default-page-size: 25
+
   # Database Configuration
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:cowtrack}

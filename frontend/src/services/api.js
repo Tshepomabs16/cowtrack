@@ -78,7 +78,14 @@ export const authAPI = {
 };
 
 export const cowsAPI = {
-  getAll: (params) => api.get('/cows', { params }),
+  // Returns a page, not an array: { content, currentPage, totalPages,
+  // totalItems, pageSize, hasNext, hasPrevious }. Takes `page` (0-based),
+  // `size` and `search`. Renamed from getAll so no caller can keep treating
+  // the result as a complete list by accident.
+  getPage: (params) => api.get('/cows', { params }),
+  // The whole herd as { cowId, name, tagId }, for pickers. Cheap enough to
+  // return complete because it omits the derived fields that cost a query each.
+  getOptions: () => api.get('/cows/options'),
   getById: (id) => api.get(`/cows/${id}`),
   create: (cowData) => api.post('/cows', cowData),
   update: (id, cowData) => api.put(`/cows/${id}`, cowData),
@@ -91,7 +98,8 @@ export const cowsAPI = {
 // Alerts are raised by the backend (geofence breaches, signal loss), never by the
 // client, so there is deliberately no create() here.
 export const alertsAPI = {
-  getAll: (params) => api.get('/alerts', { params }),
+  // Also a page. Pass `unresolvedOnly: true` to narrow it to open alerts.
+  getPage: (params) => api.get('/alerts', { params }),
   getActive: () => api.get('/alerts/active'),
   getUnreadCount: () => api.get('/alerts/count/active'),
   markAsRead: (id) => api.put(`/alerts/${id}/resolve`),

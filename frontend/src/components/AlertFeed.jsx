@@ -13,9 +13,11 @@ const AlertFeed = ({ limit = 6 }) => {
 
     const load = async () => {
       try {
-        const response = await alertsAPI.getAll();
+        // A feed, so one page of the most recent is all it ever shows.
+        const response = await alertsAPI.getPage({ size: 20 });
         if (cancelled) return;
-        setAlerts(Array.isArray(response.data) ? response.data : []);
+        const content = response.data?.content;
+        setAlerts(Array.isArray(content) ? content : []);
       } catch (err) {
         console.error('Error loading alerts:', err);
         if (!cancelled) setError('Could not load alerts');

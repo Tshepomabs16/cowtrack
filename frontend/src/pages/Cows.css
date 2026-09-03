@@ -419,3 +419,43 @@
     margin-bottom: 8px;
   }
 }
+
+/* Paging controls. Shown only when there is more than one page, so a small
+   herd never sees them. */
+.cows-page .pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.cows-page .page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cows-page .page-btn:hover:not(:disabled) {
+  background: var(--surface-2, var(--bg));
+  border-color: var(--primary);
+}
+
+.cows-page .page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cows-page .page-status {
+  color: var(--text-muted, var(--text));
+  font-size: 0.9rem;
+  min-width: 8rem;
+  text-align: center;
+}

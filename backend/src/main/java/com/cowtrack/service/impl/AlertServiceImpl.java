@@ -1,5 +1,6 @@
 package com.cowtrack.service.impl;
 
+import com.cowtrack.dto.common.PaginatedResponse;
 import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
 import com.cowtrack.entity.Alert;
@@ -9,11 +10,14 @@ import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.repository.AlertRepository;
 import com.cowtrack.repository.CowRepository;
 import com.cowtrack.repository.FarmRepository;
+import com.cowtrack.realtime.EventTypes;
+import com.cowtrack.realtime.RealtimePublisher;
 import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.AlertService;
 import com.cowtrack.util.AlertMessageGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +36,15 @@ public class AlertServiceImpl implements AlertService {
     private final FarmRepository farmRepository;
     private final FarmContext farmContext;
     private final AlertMessageGenerator alertMessageGenerator;
+    private final RealtimePublisher realtimePublisher;
 
     @Override
-    public List<AlertResponse> getAllAlerts() {
+    @Transactional(readOnly = true)
+    public PaginatedResponse<AlertResponse> getAlerts(boolean unresolvedOnly, Pageable pageable) {
         Long farmId = farmContext.getCurrentFarmId();
-        return alertRepository.findByFarmFarmIdOrderByCreatedAtDesc(farmId).stream()
-                .map(this::toResponse)
-                .collect(Collectors.toList());
+        return PaginatedResponse.from(
+                alertRepository.findPageForFarm(farmId, unresolvedOnly, pageable),
+                this::toResponse);
     }
 
     @Override
@@ -131,7 +137,7 @@ public class AlertServiceImpl implements AlertService {
         alert.setFarm(farmRepository.findById(farmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
-        alertRepository.save(alert);
+        saveAndAnnounce(alert);
         log.warn("Created geofence breach alert for cow {}: {}", cow.getTagId(), alert.getMessage());
     }
 
@@ -165,7 +171,7 @@ public class AlertServiceImpl implements AlertService {
         alert.setFarm(farmRepository.findById(farmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
-        alertRepository.save(alert);
+        saveAndAnnounce(alert);
         log.warn("Created low battery alert for collar {} on cow {}: {}%",
                 serialNumber, cow.getTagId(), batteryPercent);
         return true;
@@ -200,7 +206,7 @@ public class AlertServiceImpl implements AlertService {
         alert.setFarm(farmRepository.findById(farmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
-        alertRepository.save(alert);
+        saveAndAnnounce(alert);
         log.warn("Created night movement alert for cow {}: {} metres", cow.getTagId(), Math.round(metres));
         return true;
     }
@@ -231,9 +237,25 @@ public class AlertServiceImpl implements AlertService {
         alert.setFarm(farmRepository.findById(farmId)
                 .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
 
-        alertRepository.save(alert);
+        saveAndAnnounce(alert);
         log.warn("Created no signal alert for cow {}: {} hours without signal", cow.getTagId(), hoursWithoutSignal);
         return true;
+    }
+
+    /**
+     * Persists a newly raised alert and pushes it to the farm's open clients.
+     *
+     * <p>The farm comes from the alert rather than from {@link FarmContext}. The
+     * collar sweep raises no-signal alerts while iterating farms on a scheduler
+     * thread, where there is no ambient farm to read — taking it from the context
+     * would silently drop exactly the alerts a farmer most needs to see, and only
+     * the ones raised by the sweep, which is the kind of gap that survives a test
+     * suite.
+     */
+    private void saveAndAnnounce(Alert alert) {
+        Alert saved = alertRepository.save(alert);
+        realtimePublisher.publish(
+                saved.getFarm().getFarmId(), EventTypes.NEW_ALERT, toResponse(saved));
     }
 
     private AlertResponse toResponse(Alert alert) {

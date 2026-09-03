@@ -1,55 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { wsService, WS_EVENTS } from '../services/websocket';
-import { locationsAPI } from '../services/api';
+import { realtimeService, EVENTS } from '../services/realtime';
 import { FiAlertCircle, FiCheckCircle, FiMapPin } from 'react-icons/fi';
 import CattleMap from '../components/CattleMap/CattleMap';
 import './LiveMap.css';
 
 const LiveMap = () => {
-  const [cows, setCows] = useState([]);
-  const [isConnected, setIsConnected] = useState(false);
+  // Seeded from the service rather than false: the stream is opened by the
+  // layout and is normally already up by the time this page mounts, so waiting
+  // for the next `connected` event would show "Disconnected" over a live map.
+  const [isConnected, setIsConnected] = useState(() => realtimeService.isLive());
+  const [tracked, setTracked] = useState(0);
 
-  const handleLocationUpdate = useCallback((update) => {
-    setCows(prevCows =>
-      prevCows.map(cow =>
-        cow.id === update.cowId ? { ...cow, ...update.location } : cow
-      )
-    );
-  }, []);
-
-  const handleHealthAlert = useCallback((alert) => {
-    // Show notification for health alert
-    console.log('Health alert received:', alert);
-    // You can add a notification system here
-  }, []);
+  // Stable, so the child's effect does not re-run on every render of this one.
+  const handleTrackedChange = useCallback((count) => setTracked(count), []);
 
   useEffect(() => {
-    const fetchCowLocations = async () => {
-      try {
-        const response = await locationsAPI.getLiveLocations();
-        setCows(response.data);
-      } catch (error) {
-        console.error('Error fetching cow locations:', error);
-      }
-    };
+    const onConnected = () => setIsConnected(true);
+    const onDisconnected = () => setIsConnected(false);
 
-    fetchCowLocations();
-
-    wsService.connect();
-
-    wsService.on(WS_EVENTS.CONNECTED, () => setIsConnected(true));
-    wsService.on(WS_EVENTS.DISCONNECTED, () => setIsConnected(false));
-    wsService.on(WS_EVENTS.LOCATION_UPDATE, handleLocationUpdate);
-    wsService.on(WS_EVENTS.HEALTH_ALERT, handleHealthAlert);
+    realtimeService.on(EVENTS.CONNECTED, onConnected);
+    realtimeService.on(EVENTS.DISCONNECTED, onDisconnected);
 
     return () => {
-      wsService.off(WS_EVENTS.CONNECTED);
-      wsService.off(WS_EVENTS.DISCONNECTED);
-      wsService.off(WS_EVENTS.LOCATION_UPDATE);
-      wsService.off(WS_EVENTS.HEALTH_ALERT);
-      wsService.disconnect();
+      realtimeService.off(EVENTS.CONNECTED, onConnected);
+      realtimeService.off(EVENTS.DISCONNECTED, onDisconnected);
     };
-  }, [handleLocationUpdate, handleHealthAlert]);
+  }, []);
 
   return (
     <div className="live-map-page page-enter">
@@ -64,11 +40,11 @@ const LiveMap = () => {
               ? <><FiCheckCircle /> Live</>
               : <><FiAlertCircle /> Disconnected</>}
           </span>
-          <span className="tracked-count">{cows.length} tracked</span>
+          <span className="tracked-count">{tracked} tracked</span>
         </div>
       </div>
 
-      <CattleMap />
+      <CattleMap onTrackedChange={handleTrackedChange} />
     </div>
   );
 };

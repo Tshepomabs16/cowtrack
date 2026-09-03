@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cowsAPI } from '../services/api';
-import { FiFilter, FiSearch, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiFilter, FiSearch, FiPlus, FiEdit2, FiTrash2, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import { FaTemperatureHigh, FaHeartbeat } from 'react-icons/fa';
 import { GiCow } from 'react-icons/gi';
 import './Cows.css';
@@ -15,55 +15,73 @@ const formatCheck = (timestamp) => {
   });
 };
 
+const PAGE_SIZE = 12;
+
 const Cows = () => {
   const [cows, setCows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 1
+
+  // Page numbers are 0-based, as the API returns them, so nothing has to
+  // translate between two conventions.
+  const [page, setPage] = useState(0);
+  const [pageInfo, setPageInfo] = useState({
+    totalPages: 1,
+    totalItems: 0,
+    hasNext: false,
+    hasPrevious: false,
   });
 
+  // Applied to the query only once typing pauses. The search now runs against
+  // the whole herd rather than the page in hand, so it is a real request and
+  // should not fire on every keystroke.
+  const [appliedSearch, setAppliedSearch] = useState('');
   useEffect(() => {
-      fetchCows();
-    }, [pagination.page, filterStatus]);
+    const timer = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setPage(0); // a narrower result set makes the old page number meaningless
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const fetchCows = async () => {
-      try {
-        setLoading(true);
-        const params = {
-          page: pagination.page,
-          limit: pagination.limit,
-          status: filterStatus !== 'all' ? filterStatus : undefined,
-          search: searchTerm || undefined
-        };
+  const fetchCows = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await cowsAPI.getPage({
+        page,
+        size: PAGE_SIZE,
+        search: appliedSearch || undefined,
+      });
 
-        // The API returns a plain list; the axios interceptor has already
-        // unwrapped the ApiResponse envelope.
-        const response = await cowsAPI.getAll(params);
-        const list = Array.isArray(response.data) ? response.data : [];
-        setCows(list);
-        setPagination(prev => ({
-          ...prev,
-          total: list.length,
-          totalPages: Math.max(1, Math.ceil(list.length / prev.limit))
-        }));
-      } catch (error) {
-        console.error('Error fetching cows:', error);
-        alert('Failed to load cattle data');
-      } finally {
-        setLoading(false);
-      }
-    };
+      // A page, not a list: the envelope carries the herd total, which is what
+      // the page count is built from. It used to be inferred from the length of
+      // the array itself, so there was always exactly one page.
+      const body = response.data || {};
+      setCows(Array.isArray(body.content) ? body.content : []);
+      setPageInfo({
+        totalPages: body.totalPages ?? 1,
+        totalItems: body.totalItems ?? 0,
+        hasNext: Boolean(body.hasNext),
+        hasPrevious: Boolean(body.hasPrevious),
+      });
+    } catch (error) {
+      console.error('Error fetching cows:', error);
+      alert('Failed to load cattle data');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, appliedSearch]);
+
+  useEffect(() => { fetchCows(); }, [fetchCows]);
 
   const handleDeleteCow = async (id) => {
       if (window.confirm('Are you sure you want to remove this cow?')) {
         try {
           await cowsAPI.delete(id);
-          setCows(cows.filter(cow => cow.cowId !== id));
+          // Refetched rather than spliced out locally: removing a row from a
+          // page leaves it a row short, and the herd total stale.
+          fetchCows();
           alert('Cow removed successfully');
         } catch (error) {
           console.error('Error deleting cow:', error);
@@ -72,14 +90,7 @@ const Cows = () => {
       }
     };
 
-  // The request already applies the status filter server-side. Narrowing by search
-  // term locally keeps typing responsive without a round trip per keystroke.
-  const filteredCows = cows.filter(cow => {
-    if (!searchTerm) return true;
-    const query = searchTerm.toLowerCase();
-    return cow.name?.toLowerCase().includes(query)
-        || cow.tagId?.toLowerCase().includes(query);
-  });
+  const filteredCows = cows;
 
   return (
     <div className="cows-page page-enter">
@@ -205,25 +216,55 @@ const Cows = () => {
         )}
       </div>
 
+      {!loading && pageInfo.totalPages > 1 && (
+        <nav className="pagination" aria-label="Cattle list pages">
+          <button
+            className="page-btn"
+            onClick={() => setPage(current => Math.max(0, current - 1))}
+            disabled={!pageInfo.hasPrevious}
+            aria-label="Previous page"
+          >
+            <FiChevronLeft /> Previous
+          </button>
+
+          <span className="page-status" aria-live="polite">
+            Page {page + 1} of {pageInfo.totalPages}
+          </span>
+
+          <button
+            className="page-btn"
+            onClick={() => setPage(current => current + 1)}
+            disabled={!pageInfo.hasNext}
+            aria-label="Next page"
+          >
+            Next <FiChevronRight />
+          </button>
+        </nav>
+      )}
+
       <div className="summary-stats">
         <div className="stat-card" data-stagger style={{ '--stagger-i': 0 }}>
           <h3>Total Cattle</h3>
-          <p className="stat-number">{cows.length}</p>
+          {/* The herd total from the API, not the length of the page. */}
+          <p className="stat-number">{pageInfo.totalItems}</p>
         </div>
+        {/* These three count the page in front of you, not the herd: status is
+            derived per animal after loading, so it cannot be totalled without
+            fetching every animal — the thing paging is here to avoid. */}
         <div className="stat-card" data-stagger style={{ '--stagger-i': 1 }}>
-          <h3>Healthy</h3>
+          <h3>Healthy on this page</h3>
           <p className="stat-number" style={{color: '#10b981'}}>
             {cows.filter(c => c.status === 'healthy').length}
           </p>
         </div>
         <div className="stat-card" data-stagger style={{ '--stagger-i': 2 }}>
-          <h3>Pregnant</h3>
+          <h3>Inactive on this page</h3>
           <p className="stat-number" style={{color: '#8b5cf6'}}>
-            {cows.filter(c => c.status === 'pregnant').length}
+            {cows.filter(c => c.status === 'inactive').length}
           </p>
         </div>
         <div className="stat-card" data-stagger style={{ '--stagger-i': 3 }}>
-          <h3>Need Attention</h3>
+          <h3>Need attention on this page</h3>
           <p className="stat-number" style={{color: '#ef4444'}}>
             {cows.filter(c => c.status === 'alert').length}
           </p>
