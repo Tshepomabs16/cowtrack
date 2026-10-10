@@ -131,11 +131,21 @@ export const financialsAPI = {
 
 export const locationsAPI = {
   getLiveLocations: () => api.get('/locations/live'),
-  getGeofences: (caretakerId) => api.get(`/geofences/caretaker/${caretakerId}`),
-  createGeofence: (data) => api.post('/geofences', data),
-  updateGeofence: (id, data) => api.put(`/geofences/${id}`, data),
-  deleteGeofence: (id) => api.delete(`/geofences/${id}`),
   getHistory: (cowId, params) => api.get(`/locations/cow/${cowId}/history`, { params }),
+};
+
+// Camps (KEEP_IN) and restricted areas (KEEP_OUT) on the farm. An animal is in
+// at most one camp; moving it into another takes it out of the first.
+export const geofencesAPI = {
+  list: () => api.get('/geofences'),
+  create: (data) => api.post('/geofences', data),
+  update: (id, data) => api.put(`/geofences/${id}`, data),
+  // Retires rather than deletes a fence that has raised alerts; the response says which.
+  remove: (id) => api.delete(`/geofences/${id}`),
+  activate: (id) => api.post(`/geofences/${id}/activate`),
+  deactivate: (id) => api.post(`/geofences/${id}/deactivate`),
+  moveAnimals: (id, cowIds) => api.post(`/geofences/${id}/animals`, { cowIds }),
+  takeOutAnimal: (id, cowId) => api.delete(`/geofences/${id}/animals/${cowId}`),
 };
 
 export const analyticsAPI = {

@@ -1,104 +1,66 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet-draw';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
-const CustomDrawControl = ({ onCreated, onEdited, onDeleted }) => {
+const DRAFT_STYLE = {
+  color: '#f9a825',
+  fillColor: '#f9a825',
+  fillOpacity: 0.15,
+  weight: 2,
+  dashArray: '4 4',
+};
+
+/**
+ * leaflet-draw's toolbar, limited to the shapes a fence can be: polygons,
+ * rectangles and circles. A finished shape is handed to `onCreated` as
+ * `(layerType, layer)` and not kept on the map; the saved fence is drawn from
+ * the API once it exists, so an unsaved draft never looks like a real fence.
+ */
+const CustomDrawControl = ({ onCreated }) => {
   const map = useMap();
 
+  // Held in a ref so a new callback from the parent does not tear the toolbar
+  // down and rebuild it on every render.
+  const onCreatedRef = useRef(onCreated);
+  onCreatedRef.current = onCreated;
+
   useEffect(() => {
-    if (!map) return;
+    if (!map) return undefined;
 
-    // Create a FeatureGroup for drawing
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-
-    // Initialize draw control
     const drawControl = new L.Control.Draw({
-      position: 'topright',
+      position: 'topleft',
       draw: {
         polygon: {
+          // A camp drawn as a figure eight has no sensible inside; the backend
+          // refuses one too.
           allowIntersection: false,
           showArea: true,
-          shapeOptions: {
-            color: '#3388ff',
-            fillColor: '#3388ff',
-            fillOpacity: 0.2,
-            weight: 2
-          }
+          shapeOptions: DRAFT_STYLE,
         },
-        polyline: {
-          shapeOptions: {
-            color: '#3388ff',
-            weight: 4
-          }
-        },
-        rectangle: {
-          shapeOptions: {
-            color: '#3388ff',
-            fillColor: '#3388ff',
-            fillOpacity: 0.2,
-            weight: 2
-          }
-        },
-        circle: false,
+        rectangle: { shapeOptions: DRAFT_STYLE },
+        circle: { shapeOptions: DRAFT_STYLE },
+        polyline: false,
         marker: false,
-        circlemarker: false
+        circlemarker: false,
       },
-      edit: {
-        featureGroup: drawnItems
-      }
     });
+
+    const handleCreated = (event) => {
+      if (onCreatedRef.current) onCreatedRef.current(event.layerType, event.layer);
+    };
 
     map.addControl(drawControl);
+    map.on(L.Draw.Event.CREATED, handleCreated);
 
-    // Handle draw events
-    map.on(L.Draw.Event.CREATED, function(event) {
-      const layer = event.layer;
-      drawnItems.addLayer(layer);
-
-      // Extract coordinates based on shape type
-      let coordinates;
-      let type = event.layerType;
-
-      if (type === 'polygon' || type === 'polyline') {
-        coordinates = layer.getLatLngs();
-      } else if (type === 'rectangle') {
-        coordinates = layer.getBounds();
-      }
-
-      if (onCreated) {
-        onCreated({
-          type,
-          coordinates,
-          layer,
-          id: Date.now(),
-          color: '#3388ff'
-        });
-      }
-    });
-
-    map.on(L.Draw.Event.EDITED, function(event) {
-      if (onEdited) {
-        onEdited(event);
-      }
-    });
-
-    map.on(L.Draw.Event.DELETED, function(event) {
-      if (onDeleted) {
-        onDeleted(event);
-      }
-    });
-
-    // Cleanup
     return () => {
-      if (map) {
-        map.removeControl(drawControl);
-        map.removeLayer(drawnItems);
-      }
+      // Removed by reference: the previous version left its handlers attached,
+      // so every remount added another and one drawing fired several saves.
+      map.off(L.Draw.Event.CREATED, handleCreated);
+      map.removeControl(drawControl);
     };
-  }, [map, onCreated, onEdited, onDeleted]);
+  }, [map]);
 
   return null;
 };

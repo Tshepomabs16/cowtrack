@@ -11,26 +11,20 @@ import java.util.Optional;
 @Repository
 public interface GeofenceRepository extends JpaRepository<Geofence, Long> {
 
-    Optional<Geofence> findByCowCowId(Long cowId);
-
-    @Query("SELECT g FROM Geofence g WHERE g.cow.tagId = :tagId")
-    Optional<Geofence> findByCowTagId(@Param("tagId") String tagId);
-
-    @Query("SELECT g FROM Geofence g WHERE g.cow.caretaker.userId = :caretakerId")
-    List<Geofence> findByCaretakerId(@Param("caretakerId") Long caretakerId);
-
-    @Query("SELECT g FROM Geofence g WHERE " +
-            "(6371000 * 2 * ASIN(SQRT(" +
-            "POWER(SIN((:latitude - g.centerLatitude) * PI() / 180 / 2), 2) + " +
-            "COS(:latitude * PI() / 180) * COS(g.centerLatitude * PI() / 180) * " +
-            "POWER(SIN((:longitude - g.centerLongitude) * PI() / 180 / 2), 2)" +
-            "))) <= :radius")
-    List<Geofence> findNearLocation(
-            @Param("latitude") java.math.BigDecimal latitude,
-            @Param("longitude") java.math.BigDecimal longitude,
-            @Param("radius") Double radius);
+    /** Every lookup by id goes through the farm, so one farm can never reach another's fences. */
+    Optional<Geofence> findByFarmFarmIdAndGeofenceId(Long farmId, Long geofenceId);
 
     List<Geofence> findByFarmFarmId(Long farmId);
+
+    /** Live fences of one type: the restricted zones that apply to a whole herd. */
+    @Query("""
+            SELECT g FROM Geofence g
+            WHERE g.farm.farmId = :farmId AND g.fenceType = :fenceType
+              AND g.isActive = true AND g.retiredAt IS NULL
+            """)
+    List<Geofence> findLiveByFarmAndType(
+            @Param("farmId") Long farmId,
+            @Param("fenceType") Geofence.FenceType fenceType);
 
     long countByFarmFarmId(Long farmId);
 }

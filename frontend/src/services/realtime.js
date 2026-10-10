@@ -12,6 +12,8 @@ import api from './api';
 export const EVENTS = {
   LOCATION_UPDATE: 'location_update',
   NEW_ALERT: 'new_alert',
+  // Closed by the system, e.g. an animal walked back into its camp.
+  ALERT_RESOLVED: 'alert_resolved',
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
 };

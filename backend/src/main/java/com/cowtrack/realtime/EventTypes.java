@@ -13,6 +13,12 @@ public final class EventTypes {
     /** An alert has just been raised. Payload: {@code AlertResponse}. */
     public static final String NEW_ALERT = "new_alert";
 
+    /**
+     * An alert was closed by the system rather than by the farmer, e.g. an
+     * animal walked back into its camp. Payload: {@code AlertResponse}.
+     */
+    public static final String ALERT_RESOLVED = "alert_resolved";
+
     /** Sent once when a stream opens, so the client can show it is live. */
     public static final String CONNECTED = "connected";
 

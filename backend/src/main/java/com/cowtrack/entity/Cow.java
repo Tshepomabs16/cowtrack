@@ -47,6 +47,14 @@ public class Cow {
     @JoinColumn(name = "caretaker_id")
     private User caretaker;
 
+    /**
+     * The camp this animal is grazing in, or null if it has not been put in one.
+     * An animal is in one camp at a time; moving it is a change of this field.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "camp_id")
+    private Geofence camp;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 }

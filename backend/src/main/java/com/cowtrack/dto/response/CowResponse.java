@@ -18,7 +18,9 @@ public class CowResponse {
     private Long caretakerId;
     private String caretakerName;
     private LocalDateTime createdAt;
-    private GeofenceResponse geofence;
+    /** The camp this animal is grazing in; null if it is not in one. */
+    private Long campId;
+    private String campName;
     private LocationResponse lastLocation;
     private Integer healthRecordCount;
     private Boolean hasActiveAlerts;

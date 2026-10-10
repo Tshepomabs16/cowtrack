@@ -3,7 +3,6 @@ package com.cowtrack.service.mapper;
 import com.cowtrack.dto.request.CowRequest;
 import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.entity.Cow;
-import com.cowtrack.entity.Geofence;
 import com.cowtrack.entity.LocationRecord;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +22,7 @@ public class CowMapper {
         return cow;
     }
 
-    public CowResponse toResponse(Cow cow, Geofence geofence, LocationRecord lastLocation,
+    public CowResponse toResponse(Cow cow, LocationRecord lastLocation,
                                   Integer healthRecordCount, Boolean hasActiveAlerts) {
         CowResponse response = new CowResponse();
         response.setCowId(cow.getCowId());
@@ -49,6 +48,11 @@ public class CowMapper {
         if (cow.getCaretaker() != null) {
             response.setCaretakerId(cow.getCaretaker().getUserId());
             response.setCaretakerName(cow.getCaretaker().getFullName());
+        }
+
+        if (cow.getCamp() != null) {
+            response.setCampId(cow.getCamp().getGeofenceId());
+            response.setCampName(cow.getCamp().getName());
         }
 
         // Set additional info

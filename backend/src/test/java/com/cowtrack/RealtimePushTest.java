@@ -339,8 +339,8 @@ class RealtimePushTest {
     private void createGeofence(String token, Long cowId, String lat, String lng, int radius)
             throws Exception {
         HttpResponse<String> response = postJson("/api/geofences", token, """
-                {"cowId":%d,"centerLatitude":%s,"centerLongitude":%s,"radiusMeters":%d}"""
-                .formatted(cowId, lat, lng, radius));
+                {"name":"Home camp","cowIds":[%d],"centerLatitude":%s,"centerLongitude":%s,
+                 "radiusMeters":%d}""".formatted(cowId, lat, lng, radius));
 
         assertThat(response.statusCode()).isEqualTo(201);
     }

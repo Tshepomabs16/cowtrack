@@ -79,6 +79,13 @@ cowtrack:
       # Interpreted in this zone. Belongs on the farm once one deployment serves
       # farms in more than one timezone.
       zone: ${NIGHT_MOVEMENT_ZONE:Africa/Johannesburg}
+  geofence:
+    # How far over a fence line one fix must be, beyond the collar's own
+    # reported accuracy, to count as a crossing by itself. Cattle graze along
+    # fences and collar GPS wanders, so closer fixes must repeat to count.
+    boundary-buffer-metres: ${GEOFENCE_BUFFER_METRES:15}
+    # Fixes in a row over the line that count however close they are.
+    confirm-fixes: ${GEOFENCE_CONFIRM_FIXES:2}
   storage:
     # Where uploaded images are written. Override for a deployed environment.
     upload-dir: ${UPLOAD_DIR:./uploads}

@@ -861,3 +861,9 @@
   .time-column,
   .type-column { display: none; }
 }
+
+/* Closed by the system, e.g. "Returned inside camp 'North camp' at 14:05". */
+.alert-resolution {
+  color: var(--ok);
+  font-style: italic;
+}

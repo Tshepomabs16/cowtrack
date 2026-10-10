@@ -2,6 +2,7 @@ package com.cowtrack.config;
 
 import com.cowtrack.entity.*;
 import com.cowtrack.repository.*;
+import com.cowtrack.util.FenceShapes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -149,17 +150,59 @@ public class DataSeeder implements ApplicationRunner {
         cowRepository.save(calf);
     }
 
+    /**
+     * One camp the whole herd grazes in, a dam they must keep out of, and a
+     * second camp resting in the rotation, so the map shows each kind.
+     */
     private void createGeofences(List<Cow> herd, Farm farm) {
+        LocalDateTime drawn = LocalDateTime.now().minusMonths(6);
+
+        Geofence home = new Geofence();
+        home.setFarm(farm);
+        home.setName("Home camp");
+        home.setFenceType(Geofence.FenceType.KEEP_IN);
+        home.setShape(Geofence.Shape.CIRCLE);
+        home.setCenterLatitude(BigDecimal.valueOf(FARM_LAT));
+        home.setCenterLongitude(BigDecimal.valueOf(FARM_LNG));
+        home.setRadiusMeters(800);
+        home.setCreatedAt(drawn);
+        home = geofenceRepository.save(home);
+
         for (Cow cow : herd) {
-            Geofence fence = new Geofence();
-            fence.setCow(cow);
-            fence.setCenterLatitude(BigDecimal.valueOf(FARM_LAT));
-            fence.setCenterLongitude(BigDecimal.valueOf(FARM_LNG));
-            fence.setRadiusMeters(800);
-            fence.setCreatedAt(LocalDateTime.now().minusMonths(6));
-            fence.setFarm(farm);
-            geofenceRepository.save(fence);
+            cow.setCamp(home);
+            cowRepository.save(cow);
         }
+
+        Geofence dam = new Geofence();
+        dam.setFarm(farm);
+        dam.setName("Dam");
+        dam.setDescription("Steep banks; animals have got stuck in the mud");
+        dam.setFenceType(Geofence.FenceType.KEEP_OUT);
+        dam.setShape(Geofence.Shape.CIRCLE);
+        dam.setCenterLatitude(BigDecimal.valueOf(FARM_LAT + 0.0045));
+        dam.setCenterLongitude(BigDecimal.valueOf(FARM_LNG - 0.0040));
+        dam.setRadiusMeters(60);
+        dam.setCreatedAt(drawn);
+        geofenceRepository.save(dam);
+
+        Geofence north = new Geofence();
+        north.setFarm(farm);
+        north.setName("North camp");
+        north.setDescription("Resting until the rains");
+        north.setFenceType(Geofence.FenceType.KEEP_IN);
+        north.setShape(Geofence.Shape.POLYGON);
+        north.setVerticesJson(FenceShapes.toJson(List.of(
+                corner(FARM_LAT + 0.0090, FARM_LNG - 0.0060),
+                corner(FARM_LAT + 0.0090, FARM_LNG + 0.0060),
+                corner(FARM_LAT + 0.0170, FARM_LNG + 0.0050),
+                corner(FARM_LAT + 0.0160, FARM_LNG - 0.0070))));
+        north.setIsActive(false);
+        north.setCreatedAt(drawn);
+        geofenceRepository.save(north);
+    }
+
+    private static List<BigDecimal> corner(double lat, double lng) {
+        return List.of(BigDecimal.valueOf(lat), BigDecimal.valueOf(lng));
     }
 
     private void createLocationHistory(List<Cow> herd, Farm farm) {

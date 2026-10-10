@@ -3,6 +3,8 @@ package com.cowtrack;
 import com.cowtrack.util.GeofenceUtils;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -94,5 +96,82 @@ class GeofenceUtilsTest {
     void antipodalPointsAreAboutTwentyThousandKilometresApart() {
         double halfTheGlobe = GeofenceUtils.haversineDistanceMeters(0.0, 0.0, 0.0, 180.0);
         assertThat(halfTheGlobe).isBetween(19_900_000.0, 20_100_000.0);
+    }
+
+    // --- polygons and signed distance ------------------------------------------
+
+    /** A square camp roughly 1.1 km on a side, as [lat, lon] corners. */
+    private static final List<double[]> SQUARE = List.of(
+            new double[] {-23.900, 29.460},
+            new double[] {-23.900, 29.470},
+            new double[] {-23.910, 29.470},
+            new double[] {-23.910, 29.460});
+
+    /** One metre of latitude, in degrees. */
+    private static final double METRE = 1.0 / 111_195.0;
+
+    @Test
+    void aPointInTheMiddleOfAPolygonIsInsideIt() {
+        assertThat(GeofenceUtils.isInsidePolygon(SQUARE, -23.905, 29.465)).isTrue();
+        assertThat(GeofenceUtils.signedDistanceToPolygonMeters(SQUARE, -23.905, 29.465)).isNegative();
+    }
+
+    @Test
+    void aPointBeyondAPolygonIsOutsideItByTheRightDistance() {
+        // 100 m north of the northern edge.
+        double distance = GeofenceUtils.signedDistanceToPolygonMeters(SQUARE, -23.900 + 100 * METRE, 29.465);
+        assertThat(distance).isBetween(99.0, 101.0);
+    }
+
+    @Test
+    void insideDistanceIsToTheNearestEdgeNotTheFurthest() {
+        // 50 m inside the western edge, far from the others.
+        double distance = GeofenceUtils.signedDistanceToPolygonMeters(SQUARE, -23.905, 29.460 + 50 * METRE
+                / Math.cos(Math.toRadians(23.905)));
+        assertThat(distance).isBetween(-51.0, -49.0);
+    }
+
+    @Test
+    void aPointOnAPolygonEdgeCountsAsInside() {
+        assertThat(GeofenceUtils.signedDistanceToPolygonMeters(SQUARE, -23.900, 29.465)).isLessThanOrEqualTo(0.0);
+    }
+
+    /** An L-shaped camp: the notch between its arms is outside, though it sits within the outline's bounds. */
+    @Test
+    void theNotchOfAConcaveCampIsOutsideIt() {
+        List<double[]> lShape = List.of(
+                new double[] {-23.900, 29.460},
+                new double[] {-23.900, 29.465},
+                new double[] {-23.905, 29.465},
+                new double[] {-23.905, 29.470},
+                new double[] {-23.910, 29.470},
+                new double[] {-23.910, 29.460});
+        assertThat(GeofenceUtils.isInsidePolygon(lShape, -23.902, 29.468)).isFalse();
+        assertThat(GeofenceUtils.isInsidePolygon(lShape, -23.908, 29.468)).isTrue();
+    }
+
+    @Test
+    void signedDistanceToACircleIsNegativeInsideAndPositiveOutside() {
+        double centreLat = -23.9045, centreLon = 29.4689;
+        assertThat(GeofenceUtils.signedDistanceToCircleMeters(
+                centreLat + 100 * METRE, centreLon, centreLat, centreLon, 300)).isBetween(-201.0, -199.0);
+        assertThat(GeofenceUtils.signedDistanceToCircleMeters(
+                centreLat + 400 * METRE, centreLon, centreLat, centreLon, 300)).isBetween(99.0, 101.0);
+    }
+
+    @Test
+    void aFigureEightPolygonIsRecognisedAsCrossingItself() {
+        List<double[]> bowTie = List.of(
+                new double[] {-23.900, 29.460},
+                new double[] {-23.910, 29.470},
+                new double[] {-23.900, 29.470},
+                new double[] {-23.910, 29.460});
+        assertThat(GeofenceUtils.polygonSelfIntersects(bowTie)).isTrue();
+        assertThat(GeofenceUtils.polygonSelfIntersects(SQUARE)).isFalse();
+    }
+
+    @Test
+    void aTriangleCannotCrossItself() {
+        assertThat(GeofenceUtils.polygonSelfIntersects(SQUARE.subList(0, 3))).isFalse();
     }
 }

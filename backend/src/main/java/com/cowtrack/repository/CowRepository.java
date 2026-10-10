@@ -18,8 +18,10 @@ public interface CowRepository extends JpaRepository<Cow, Long> {
 
     List<Cow> findByCaretakerUserId(Long caretakerId);
 
-    @Query("SELECT c FROM Cow c WHERE c NOT IN (SELECT g.cow FROM Geofence g)")
-    List<Cow> findCowsWithoutGeofence();
+    /** The animals grazing in one camp. */
+    List<Cow> findByFarmFarmIdAndCampGeofenceId(Long farmId, Long campId);
+
+    long countByCampGeofenceId(Long campId);
 
     @Query("SELECT c FROM Cow c WHERE c.mother.cowId = :motherId OR c.father.cowId = :fatherId")
     List<Cow> findChildrenByParentId(@Param("motherId") Long motherId, @Param("fatherId") Long fatherId);

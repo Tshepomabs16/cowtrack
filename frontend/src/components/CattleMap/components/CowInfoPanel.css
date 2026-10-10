@@ -167,3 +167,18 @@
   background: #c0392b;
   transform: translateY(-1px);
 }
+.camp-select {
+  max-width: 60%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+}
+
+.camp-error {
+  margin: 4px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+}

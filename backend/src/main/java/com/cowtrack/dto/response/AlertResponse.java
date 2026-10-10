@@ -24,4 +24,10 @@ public class AlertResponse {
 
     /** Human-readable heading for the alert card, derived from alertType. */
     private String title;
+
+    /** The fence a breach was raised against; null for other alert types. */
+    private Long geofenceId;
+
+    /** Why the system closed it, e.g. the animal returned to its camp. */
+    private String resolutionNote;
 }

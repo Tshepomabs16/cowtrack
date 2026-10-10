@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaTimes, FaHeartbeat, FaTemperatureHigh, FaWeight, FaMapMarkerAlt } from 'react-icons/fa';
 import './CowInfoPanel.css';
@@ -7,10 +7,27 @@ import './CowInfoPanel.css';
 const value = (reading, suffix) =>
   reading === null || reading === undefined || reading === '' ? '—' : `${reading}${suffix}`;
 
-const CowInfoPanel = ({ cow, onClose }) => {
+const CowInfoPanel = ({ cow, camps = [], canMove = false, onMove, onClose }) => {
   const navigate = useNavigate();
+  const [moving, setMoving] = useState(false);
+  const [moveError, setMoveError] = useState(null);
 
   if (!cow) return null;
+
+  const handleCampChange = async (event) => {
+    const campId = event.target.value ? Number(event.target.value) : null;
+    setMoving(true);
+    setMoveError(null);
+    const problem = await onMove(cow, campId);
+    setMoveError(problem);
+    setMoving(false);
+  };
+
+  // The animal's camp may be switched off, and so missing from the choices,
+  // while it is still in it; it is listed anyway so the select shows the truth.
+  const campChoices = cow.campId && !camps.some(camp => camp.geofenceId === cow.campId)
+    ? [{ geofenceId: cow.campId, name: cow.campName }, ...camps]
+    : camps;
 
   return (
     <div className="cow-info-panel">
@@ -63,6 +80,26 @@ const CowInfoPanel = ({ cow, onClose }) => {
             <span className="detail-label">Age:</span>
             <span className="detail-value">{value(cow.age, ' years')}</span>
           </div>
+          <div className="detail-row">
+            <span className="detail-label">Camp:</span>
+            {canMove && onMove ? (
+              <select
+                className="camp-select"
+                value={cow.campId || ''}
+                disabled={moving}
+                onChange={handleCampChange}
+                aria-label="Camp"
+              >
+                <option value="">Not in a camp</option>
+                {campChoices.map(camp => (
+                  <option key={camp.geofenceId} value={camp.geofenceId}>{camp.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="detail-value">{cow.campName || 'Not in a camp'}</span>
+            )}
+          </div>
+          {moveError && <p className="camp-error" role="alert">{moveError}</p>}
           <div className="detail-row">
             <span className="detail-label">Last seen:</span>
             <span className="detail-value">{cow.lastSeen || '—'}</span>
