@@ -3,6 +3,8 @@ package com.cowtrack.service;
 import com.cowtrack.dto.common.PaginatedResponse;
 import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
+import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Geofence;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
@@ -25,6 +27,27 @@ public interface AlertService {
     long getActiveAlertCount();
     List<AlertResponse> filterAlerts(AlertFilterRequest filter);
     void createGeofenceBreachAlert(Long cowId, boolean isInside);
+
+    /**
+     * Raises a breach alert for an animal confirmed on the wrong side of a
+     * fence: outside its camp, or inside a restricted zone.
+     *
+     * <p>At most one is open per animal per fence. The farm is named explicitly,
+     * like the no-signal alert, because this runs from collar ingestion as well
+     * as from a request.
+     *
+     * @param metresOver how far over the line the confirming fix was
+     * @return true if an alert was created, false if one was already open
+     */
+    boolean raiseGeofenceBreach(Long farmId, Cow cow, Geofence fence, double metresOver);
+
+    /**
+     * Closes any open breach alert for this animal against this fence, leaving
+     * {@code note} to say why. Pushed to open clients, since nobody clicked it.
+     *
+     * @return how many alerts were closed
+     */
+    int clearGeofenceBreach(Long farmId, Long cowId, Long geofenceId, String note);
     void createNoSignalAlert(Long cowId, long hoursWithoutSignal);
 
     /**

@@ -5,6 +5,7 @@ import com.cowtrack.dto.request.AlertFilterRequest;
 import com.cowtrack.dto.response.AlertResponse;
 import com.cowtrack.entity.Alert;
 import com.cowtrack.entity.Cow;
+import com.cowtrack.entity.Geofence;
 import com.cowtrack.entity.Farm;
 import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.repository.AlertRepository;
@@ -78,6 +79,7 @@ public class AlertServiceImpl implements AlertService {
         }
 
         alert.setIsResolved(true);
+        alert.setResolvedAt(LocalDateTime.now());
         Alert updatedAlert = alertRepository.save(alert);
 
         log.info("Alert {} marked as resolved", alertId);
@@ -91,7 +93,11 @@ public class AlertServiceImpl implements AlertService {
             throw new ResourceNotFoundException("Cow not found with id: " + cowId);
         }
         List<Alert> activeAlerts = alertRepository.findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cowId);
-        activeAlerts.forEach(alert -> alert.setIsResolved(true));
+        LocalDateTime now = LocalDateTime.now();
+        activeAlerts.forEach(alert -> {
+            alert.setIsResolved(true);
+            alert.setResolvedAt(now);
+        });
         alertRepository.saveAll(activeAlerts);
 
         log.info("Marked {} alerts as resolved for cow {}", activeAlerts.size(), cowId);
@@ -139,6 +145,55 @@ public class AlertServiceImpl implements AlertService {
 
         saveAndAnnounce(alert);
         log.warn("Created geofence breach alert for cow {}: {}", cow.getTagId(), alert.getMessage());
+    }
+
+    @Override
+    public boolean raiseGeofenceBreach(Long farmId, Cow cow, Geofence fence, double metresOver) {
+        // One open alert per animal per fence. FenceCrossing already only
+        // reports a change of side, but a camp being switched off and on again,
+        // or the animal being moved back into it, starts it from a fresh
+        // baseline, and that must not stack a second alert on an uncleared one.
+        boolean alreadyOpen = !alertRepository
+                .findByFarmFarmIdAndCowCowIdAndGeofenceGeofenceIdAndIsResolvedFalse(
+                        farmId, cow.getCowId(), fence.getGeofenceId())
+                .isEmpty();
+        if (alreadyOpen) {
+            log.debug("Breach of fence {} already open for cow {}", fence.getGeofenceId(), cow.getTagId());
+            return false;
+        }
+
+        Alert alert = new Alert();
+        alert.setCow(cow);
+        alert.setGeofence(fence);
+        alert.setAlertType(Alert.AlertType.GEOFENCE_BREACH);
+        alert.setMessage(alertMessageGenerator.generateFenceBreachMessage(
+                cow, fence.getName(), fence.isKeepIn(), metresOver));
+        alert.setIsResolved(false);
+        alert.setCreatedAt(LocalDateTime.now());
+        alert.setFarm(farmRepository.findById(farmId)
+                .orElseThrow(() -> new ResourceNotFoundException("Farm not found")));
+
+        saveAndAnnounce(alert);
+        log.warn("Created geofence breach alert for cow {}: {}", cow.getTagId(), alert.getMessage());
+        return true;
+    }
+
+    @Override
+    public int clearGeofenceBreach(Long farmId, Long cowId, Long geofenceId, String note) {
+        List<Alert> open = alertRepository
+                .findByFarmFarmIdAndCowCowIdAndGeofenceGeofenceIdAndIsResolvedFalse(farmId, cowId, geofenceId);
+        LocalDateTime now = LocalDateTime.now();
+        for (Alert alert : open) {
+            alert.setIsResolved(true);
+            alert.setResolvedAt(now);
+            alert.setResolutionNote(note);
+            Alert saved = alertRepository.save(alert);
+            realtimePublisher.publish(farmId, EventTypes.ALERT_RESOLVED, toResponse(saved));
+        }
+        if (!open.isEmpty()) {
+            log.info("Closed {} breach alert(s) for cow {} on fence {}: {}", open.size(), cowId, geofenceId, note);
+        }
+        return open.size();
     }
 
     @Override
@@ -269,8 +324,10 @@ public class AlertServiceImpl implements AlertService {
         response.setCreatedAt(alert.getCreatedAt());
         response.setSeverity(deriveSeverity(alert.getAlertType()));
         response.setTitle(deriveTitle(alert.getAlertType()));
-        // Note: Your schema doesn't have resolvedAt field
-        // response.setResolvedAt(alert.getResolvedAt());
+        response.setResolvedAt(alert.getResolvedAt());
+        response.setResolutionNote(alert.getResolutionNote());
+        // The id is on the proxy itself, so this does not load the fence.
+        response.setGeofenceId(alert.getGeofence() != null ? alert.getGeofence().getGeofenceId() : null);
         return response;
     }
 
@@ -316,7 +373,11 @@ public class AlertServiceImpl implements AlertService {
     public int resolveAllAlerts() {
         Long farmId = farmContext.getCurrentFarmId();
         List<Alert> open = alertRepository.findByFarmFarmIdAndIsResolvedFalseOrderByCreatedAtDesc(farmId);
-        open.forEach(alert -> alert.setIsResolved(true));
+        LocalDateTime now = LocalDateTime.now();
+        open.forEach(alert -> {
+            alert.setIsResolved(true);
+            alert.setResolvedAt(now);
+        });
         alertRepository.saveAll(open);
 
         log.info("Resolved {} open alerts", open.size());

@@ -87,8 +87,18 @@ const Navbar = () => {
       });
     };
 
+    const handleResolved = (alert) => {
+      setNotifications(previous => previous.map(item =>
+        item.id === alert.alertId ? { ...item, unread: false } : item
+      ));
+    };
+
     realtimeService.on(EVENTS.NEW_ALERT, handleNewAlert);
-    return () => realtimeService.off(EVENTS.NEW_ALERT, handleNewAlert);
+    realtimeService.on(EVENTS.ALERT_RESOLVED, handleResolved);
+    return () => {
+      realtimeService.off(EVENTS.NEW_ALERT, handleNewAlert);
+      realtimeService.off(EVENTS.ALERT_RESOLVED, handleResolved);
+    };
   }, []);
 
   const unreadCount = notifications.filter(n => n.unread).length;

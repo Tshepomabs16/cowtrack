@@ -44,6 +44,13 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
 
     List<Alert> findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(Long farmId, Long cowId);
 
+    /** Open breach alerts for one animal against one fence: at most one, by construction. */
+    List<Alert> findByFarmFarmIdAndCowCowIdAndGeofenceGeofenceIdAndIsResolvedFalse(
+            Long farmId, Long cowId, Long geofenceId);
+
+    /** Whether a fence has ever raised an alert, which decides retire versus delete. */
+    boolean existsByGeofenceGeofenceId(Long geofenceId);
+
     /**
      * One page of a farm's alerts, optionally only the unresolved ones.
      *

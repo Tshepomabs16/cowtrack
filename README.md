@@ -38,7 +38,9 @@ The core entities live in `backend/src/main/java/com/cowtrack/entity/`:
 
 - **Cow** — the tracked animal, including breed
 - **LocationRecord** — timestamped GPS positions
-- **Geofence** — boundary polygons; breaches are evaluated by `GeofenceCalculator`
+- **Geofence** — a camp (`KEEP_IN`) or restricted area (`KEEP_OUT`) on the farm,
+  drawn as a circle or polygon; see [Camps and restricted areas](#camps-and-restricted-areas)
+- **GeofenceOccupancy** — which side of each fence each animal was last confirmed on
 - **Alert** — raised on geofence breach and other conditions
 - **HealthRecord** — veterinary diagnosis and treatment history
 - **HealthMetric** — collar vitals (temperature, heart rate, activity)
@@ -61,6 +63,40 @@ out of step with the data they summarise:
 | `CowResponse.age` | `dateOfBirth` |
 | `CowResponse.temperature` / `heartRate` / `lastCheck` | most recent `HealthMetric` |
 | `Vaccination.status` | `administeredDate` and `nextDueDate` |
+
+## Camps and restricted areas
+
+Fences belong to the farm, not to individual animals.
+
+- A **camp** (`KEEP_IN`) holds animals. Each animal is in at most one camp
+  (`cows.camp_id`), and **leaving** it raises a breach alert. When the animal comes
+  back, the alert closes itself with a note saying when.
+- A **restricted area** (`KEEP_OUT`), such as a dam or a neighbour's crop, applies
+  to the whole herd. **Entering** it raises the alert; leaving it closes the alert.
+- At most one breach alert is open per animal per fence.
+- Moving an animal to another camp closes any breach it had against the old one.
+- A camp is **switched off** while it rests in a grazing rotation. It can't be
+  switched off or removed while animals are still in it, so monitoring never stops
+  without anyone noticing.
+- A fence that has raised alerts is **retired** rather than deleted, so those alerts
+  keep the boundary they were raised against.
+
+Collar GPS wanders 10–30 m and cattle graze along fence lines, so one position
+over the line is not enough. A crossing counts only when one of these is true
+(`util/FenceCrossing.java`):
+
+- the fix is further over the line than its reported accuracy plus a buffer
+  (`GEOFENCE_BUFFER_METRES`, default 15 m), or
+- enough fixes in a row land on the other side (`GEOFENCE_CONFIRM_FIXES`, default 2).
+
+The same rule applies on the way back, so an animal standing at the fence doesn't
+flicker between "left" and "returned". Only a position newer than the last one
+evaluated is checked, so a collar uploading old readings late can't reopen a
+crossing the animal has already come back from.
+
+Fences are drawn on the Live Map with the shape tools. Animals are moved between
+camps from the animal's panel on the map. Only a farmer or an admin can do
+either; caretakers can see camps but not change them.
 
 ## Running it
 
@@ -140,6 +176,8 @@ variables for anything deployed.
 | `JWT_SECRET` | Token signing key, **min 32 chars** | insecure dev default |
 | `JWT_EXPIRATION_MS` | Token lifetime | `86400000` (24h) |
 | `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API | `http://localhost:3000` |
+| `GEOFENCE_BUFFER_METRES` | Margin beyond a fix's accuracy before one fix counts as a crossing | `15` |
+| `GEOFENCE_CONFIRM_FIXES` | Fixes in a row over a fence line that count as a crossing | `2` |
 
 `JWT_SECRET` **must** be overridden outside local development. Generate one with
 `openssl rand -base64 48`.

@@ -38,6 +38,18 @@ public class Alert {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    /** The fence a breach was raised against; null for every other alert type. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "geofence_id")
+    private Geofence geofence;
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+
+    /** Why it was closed, when the system closed it, e.g. "Returned inside 'North camp'". */
+    @Column(name = "resolution_note")
+    private String resolutionNote;
+
     public enum AlertType {
         GEOFENCE_BREACH,
         NO_SIGNAL,

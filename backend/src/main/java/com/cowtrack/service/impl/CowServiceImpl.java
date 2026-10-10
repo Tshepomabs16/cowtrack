@@ -7,7 +7,6 @@ import com.cowtrack.dto.response.CowOptionResponse;
 import com.cowtrack.dto.response.CowResponse;
 import com.cowtrack.entity.Cow;
 import com.cowtrack.entity.Farm;
-import com.cowtrack.entity.Geofence;
 import com.cowtrack.entity.LocationRecord;
 import com.cowtrack.entity.User;
 import com.cowtrack.exception.BusinessException;
@@ -32,7 +31,6 @@ public class CowServiceImpl implements CowService {
 
     private final CowRepository cowRepository;
     private final UserRepository userRepository;
-    private final GeofenceRepository geofenceRepository;
     private final LocationRecordRepository locationRecordRepository;
     private final AlertRepository alertRepository;
     private final HealthRecordRepository healthRecordRepository;
@@ -205,7 +203,6 @@ public class CowServiceImpl implements CowService {
                 ? cow.getFarm().getFarmId()
                 : farmContext.getCurrentFarmId();
 
-        Geofence geofence = geofenceRepository.findByCowCowId(cow.getCowId()).orElse(null);
         LocationRecord lastLocation = locationRecordRepository
                 .findLatestByFarmIdAndCowId(farmId, cow.getCowId()).orElse(null);
         Integer healthRecordCount = healthRecordRepository.findByCowCowIdOrderByRecordDateDesc(cow.getCowId()).size();
@@ -213,7 +210,7 @@ public class CowServiceImpl implements CowService {
                 .findByFarmFarmIdAndCowCowIdAndIsResolvedFalse(farmId, cow.getCowId()).isEmpty();
 
         CowResponse response =
-                cowMapper.toResponse(cow, geofence, lastLocation, healthRecordCount, hasActiveAlerts);
+                cowMapper.toResponse(cow, lastLocation, healthRecordCount, hasActiveAlerts);
 
         if (cow.getDateOfBirth() != null) {
             response.setAge((int) java.time.temporal.ChronoUnit.YEARS.between(

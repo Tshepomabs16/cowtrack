@@ -1,12 +1,21 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, FeatureGroup } from 'react-leaflet';
+import React, { useState, useEffect, useCallback } from 'react';
+import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import CowMarker from './components/CowMarker';
 import CustomDrawControl from './components/CustomDrawControl';
 import CowInfoPanel from './components/CowInfoPanel';
-import { locationsAPI, cowsAPI } from '../../services/api';
+import FenceLayer from './components/FenceLayer';
+import { assignableCamps, describeFence, fenceStyle, shapeFromLayer, FENCE_TYPES } from './geofenceShapes';
+import { locationsAPI, cowsAPI, geofencesAPI } from '../../services/api';
 import { realtimeService, EVENTS } from '../../services/realtime';
+import { useAuth } from '../../context/AuthContext';
 import './CattleMap.css';
+
+/** Mirrors the backend: only a farmer or an admin may draw or change fences. */
+const MANAGER_ROLES = ['FARMER', 'ADMIN'];
+
+/** The server's own explanation when it gave one, which is usually the useful part. */
+const errorMessage = (err, fallback) => err?.response?.data?.message || fallback;
 
 /** Used only when no animal has reported a position yet. */
 const FALLBACK_CENTER = [-23.9045, 29.4689];
@@ -48,10 +57,24 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
   // mean remounting the map on every position that arrives.
   const [center, setCenter] = useState(null);
 
-  // Shapes drawn in this session. Drawn geofences are not persisted yet, so this
-  // is deliberately local rather than loaded from the API.
-  const [geofences, setGeofences] = useState([]);
-  const featureGroupRef = useRef();
+  const { user } = useAuth();
+  const canManage = MANAGER_ROLES.includes(user?.role);
+
+  // Camps and restricted areas, as saved. A shape just drawn waits in `draft`
+  // until it has a name and a kind; only saved fences are drawn on the map.
+  const [fences, setFences] = useState([]);
+  const [draft, setDraft] = useState(null);
+  const [fenceError, setFenceError] = useState(null);
+  const [savingFence, setSavingFence] = useState(false);
+
+  const loadFences = useCallback(async () => {
+    try {
+      const response = await geofencesAPI.list();
+      setFences(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('Error loading camps:', err);
+    }
+  }, []);
 
   const load = useCallback(async ({ isReconnect = false } = {}) => {
     try {
@@ -134,17 +157,27 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
       hasConnectedBefore = true;
     };
 
+    // A breach raised or cleared changes how many animals a camp has outside.
+    const onBreachChange = (alert) => {
+      if (!cancelled && alert?.alertType === 'GEOFENCE_BREACH') loadFences();
+    };
+
     realtimeService.on(EVENTS.LOCATION_UPDATE, onUpdate);
     realtimeService.on(EVENTS.CONNECTED, onConnected);
+    realtimeService.on(EVENTS.NEW_ALERT, onBreachChange);
+    realtimeService.on(EVENTS.ALERT_RESOLVED, onBreachChange);
 
     load();
+    loadFences();
 
     return () => {
       cancelled = true;
       realtimeService.off(EVENTS.LOCATION_UPDATE, onUpdate);
       realtimeService.off(EVENTS.CONNECTED, onConnected);
+      realtimeService.off(EVENTS.NEW_ALERT, onBreachChange);
+      realtimeService.off(EVENTS.ALERT_RESOLVED, onBreachChange);
     };
-  }, [load, applyLocationUpdate]);
+  }, [load, applyLocationUpdate, loadFences]);
 
   useEffect(() => {
     if (onTrackedChange) onTrackedChange(cows.length);
@@ -173,6 +206,8 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
             weight: data?.weight,
             temperature: data?.temperature,
             heartRate: data?.heartRate,
+            campId: data?.campId,
+            campName: data?.campName,
           }
           : current
       ));
@@ -181,14 +216,69 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
     }
   }, []);
 
-  const handleGeofenceCreated = (geofenceData) => {
-    setGeofences(previous => [...previous, {
-      id: geofenceData.id,
-      type: geofenceData.type,
-      coordinates: geofenceData.coordinates,
-      color: geofenceData.color,
-      name: `Geofence ${previous.length + 1}`,
-    }]);
+  const handleShapeDrawn = useCallback((layerType, layer) => {
+    const shape = shapeFromLayer(layerType, layer);
+    if (!shape) return;
+    setFenceError(null);
+    setDraft({ ...shape, name: '', fenceType: FENCE_TYPES.KEEP_IN });
+  }, []);
+
+  const saveDraft = async (event) => {
+    event.preventDefault();
+    if (!draft.name.trim()) {
+      setFenceError('Give it a name the farm will recognise');
+      return;
+    }
+    setSavingFence(true);
+    try {
+      const { data } = await geofencesAPI.create({ ...draft, name: draft.name.trim() });
+      setFences(previous => [data, ...previous]);
+      setDraft(null);
+      setFenceError(null);
+    } catch (err) {
+      setFenceError(errorMessage(err, 'Could not save that shape'));
+    } finally {
+      setSavingFence(false);
+    }
+  };
+
+  /** Runs a change to one fence and puts the server's answer in its place. */
+  const changeFence = async (action, fence) => {
+    setFenceError(null);
+    try {
+      if (action === 'remove') {
+        const label = fence.fenceType === FENCE_TYPES.KEEP_OUT ? 'restricted area' : 'camp';
+        if (!window.confirm(`Remove ${label} '${fence.name}'?`)) return;
+        await geofencesAPI.remove(fence.geofenceId);
+        setFences(previous => previous.filter(f => f.geofenceId !== fence.geofenceId));
+        return;
+      }
+      const { data } = action === 'activate'
+        ? await geofencesAPI.activate(fence.geofenceId)
+        : await geofencesAPI.deactivate(fence.geofenceId);
+      setFences(previous => previous.map(f => (f.geofenceId === data.geofenceId ? data : f)));
+    } catch (err) {
+      setFenceError(errorMessage(err, 'That change could not be made'));
+    }
+  };
+
+  /** Moves the open animal into a camp, or out of its current one. */
+  const moveCow = async (cow, campId) => {
+    try {
+      if (campId) {
+        await geofencesAPI.moveAnimals(campId, [cow.id]);
+      } else if (cow.campId) {
+        await geofencesAPI.takeOutAnimal(cow.campId, cow.id);
+      }
+      const camp = fences.find(f => f.geofenceId === campId);
+      setSelectedCow(current => (current && current.id === cow.id
+        ? { ...current, campId: campId || null, campName: camp ? camp.name : null }
+        : current));
+      loadFences();
+      return null;
+    } catch (err) {
+      return errorMessage(err, 'Could not move this animal');
+    }
   };
 
   if (loading || !center) {
@@ -211,21 +301,23 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
 
-        <FeatureGroup ref={featureGroupRef} />
+        <FenceLayer fences={fences} />
 
         {cows.map(cow => (
           <CowMarker key={cow.id} cow={cow} onClick={() => openCow(cow)} />
         ))}
 
-        <CustomDrawControl
-          onCreated={handleGeofenceCreated}
-          onEdited={() => {}}
-          onDeleted={() => {}}
-        />
+        {canManage && <CustomDrawControl onCreated={handleShapeDrawn} />}
       </MapContainer>
 
       {selectedCow && (
-        <CowInfoPanel cow={selectedCow} onClose={() => setSelectedCow(null)} />
+        <CowInfoPanel
+          cow={selectedCow}
+          camps={assignableCamps(fences)}
+          canMove={canManage}
+          onMove={moveCow}
+          onClose={() => setSelectedCow(null)}
+        />
       )}
 
       <div className="map-controls">
@@ -238,23 +330,73 @@ const CattleMap = ({ height = 600, onTrackedChange }) => {
                 ? `${cows.length} animal${cows.length === 1 ? '' : 's'} reporting`
                 : 'No positions reported yet'}
           </p>
-          {geofences.length > 0 && (
-            <div className="geofence-list">
-              <h5>Drawn shapes ({geofences.length})</h5>
-              {geofences.map(gf => (
-                <div key={gf.id} className="geofence-item">
-                  <span style={{ color: gf.color }}>●</span>
-                  <span>{gf.name}</span>
-                  <button
-                    className="remove-btn"
-                    onClick={() => setGeofences(geofences.filter(g => g.id !== gf.id))}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
+
+          {draft && (
+            <form className="fence-draft" onSubmit={saveDraft}>
+              <h5>New {draft.shape === 'CIRCLE' ? 'circle' : 'shape'}</h5>
+              <input
+                type="text"
+                placeholder="Name, e.g. North camp"
+                value={draft.name}
+                maxLength={120}
+                autoFocus
+                onChange={e => setDraft({ ...draft, name: e.target.value })}
+              />
+              <select
+                value={draft.fenceType}
+                onChange={e => setDraft({ ...draft, fenceType: e.target.value })}
+              >
+                <option value={FENCE_TYPES.KEEP_IN}>Camp: alert when an animal leaves</option>
+                <option value={FENCE_TYPES.KEEP_OUT}>Restricted area: alert when one enters</option>
+              </select>
+              <div className="fence-draft-actions">
+                <button type="submit" className="fence-btn primary" disabled={savingFence}>
+                  {savingFence ? 'Saving…' : 'Save'}
+                </button>
+                <button type="button" className="fence-btn" onClick={() => setDraft(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
           )}
+
+          {fenceError && <p className="fence-error" role="alert">{fenceError}</p>}
+
+          <div className="geofence-list">
+            <h5>Camps &amp; areas ({fences.length})</h5>
+            {fences.length === 0 && (
+              <p className="fence-empty">
+                {canManage
+                  ? 'Draw a camp with the shape tools on the left of the map.'
+                  : 'No camps have been drawn yet.'}
+              </p>
+            )}
+            {fences.map(fence => (
+              <div key={fence.geofenceId} className="geofence-item">
+                <span className="fence-swatch" style={{ borderColor: fenceStyle(fence).color }} />
+                <div className="fence-text">
+                  <span className="fence-name">{fence.name}</span>
+                  <span className={`fence-meta ${fence.animalsOutside > 0 ? 'warn' : ''}`}>
+                    {describeFence(fence)}
+                  </span>
+                </div>
+                {canManage && (
+                  <div className="fence-actions">
+                    <button
+                      type="button"
+                      className="fence-btn"
+                      onClick={() => changeFence(fence.isActive === false ? 'activate' : 'deactivate', fence)}
+                    >
+                      {fence.isActive === false ? 'Switch on' : 'Switch off'}
+                    </button>
+                    <button type="button" className="fence-btn danger" onClick={() => changeFence('remove', fence)}>
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

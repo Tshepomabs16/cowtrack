@@ -9,12 +9,12 @@ import com.cowtrack.exception.ResourceNotFoundException;
 import com.cowtrack.repository.AlertRepository;
 import com.cowtrack.repository.CowRepository;
 import com.cowtrack.repository.FarmRepository;
-import com.cowtrack.repository.GeofenceRepository;
 import com.cowtrack.repository.LocationRecordRepository;
 import com.cowtrack.realtime.EventTypes;
 import com.cowtrack.realtime.RealtimePublisher;
 import com.cowtrack.security.FarmContext;
 import com.cowtrack.service.AlertService;
+import com.cowtrack.service.GeofenceMonitoringService;
 import com.cowtrack.service.LocationService;
 import com.cowtrack.service.mapper.LocationMapper;
 import com.cowtrack.util.GeofenceCalculator;
@@ -46,10 +46,10 @@ public class LocationServiceImpl implements LocationService {
 
     private final LocationRecordRepository locationRecordRepository;
     private final CowRepository cowRepository;
-    private final GeofenceRepository geofenceRepository;
     private final FarmRepository farmRepository;
     private final FarmContext farmContext;
     private final AlertService alertService;
+    private final GeofenceMonitoringService geofenceMonitoringService;
     private final LocationMapper locationMapper;
     private final GeofenceCalculator geofenceCalculator;
     private final NightMovementProperties nightMovementProperties;
@@ -146,54 +146,16 @@ public class LocationServiceImpl implements LocationService {
     @Override
     public void checkGeofenceViolations(Long cowId) {
         Long farmId = farmContext.getCurrentFarmId();
+        Cow cow = cowRepository.findByFarmFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cow not found with id: " + cowId));
 
-        // A breach is a crossing, so it takes the newest position and the one
-        // before it — two rows, not the animal's entire history. This ran on
-        // every incoming position and loaded everything the collar had ever
-        // reported to look at element 1 of it.
-        List<LocationRecord> recentLocations = locationRecordRepository.findRecentByFarmIdAndCowId(
-                farmId, cowId, PageRequest.of(0, 2));
+        // The newest position only. A crossing is judged against the state kept
+        // per fence rather than by comparing the last two rows, which mistook
+        // coming back for a breach and could not see several fences at once.
+        LocationRecord latest = locationRecordRepository.findLatestByFarmIdAndCowId(farmId, cowId)
+                .orElseThrow(() -> new ResourceNotFoundException("No location found for cow id: " + cowId));
 
-        if (recentLocations.isEmpty()) {
-            throw new ResourceNotFoundException("No location found for cow id: " + cowId);
-        }
-        LocationRecord latestLocation = recentLocations.get(0);
-
-        Geofence geofence = geofenceRepository.findByCowCowId(cowId).orElse(null);
-
-        if (geofence == null) {
-            log.debug("No geofence defined for cow {}", cowId);
-            return;
-        }
-
-        boolean isInside = geofenceCalculator.isInsideGeofence(
-                latestLocation.getLatitude(),
-                latestLocation.getLongitude(),
-                geofence.getCenterLatitude(),
-                geofence.getCenterLongitude(),
-                geofence.getRadiusMeters()
-        );
-
-        if (recentLocations.size() > 1) {
-            LocationRecord previousLocation = recentLocations.get(1);
-
-            boolean wasInside = geofenceCalculator.isInsideGeofence(
-                    previousLocation.getLatitude(),
-                    previousLocation.getLongitude(),
-                    geofence.getCenterLatitude(),
-                    geofence.getCenterLongitude(),
-                    geofence.getRadiusMeters()
-            );
-
-            if (wasInside != isInside) {
-                alertService.createGeofenceBreachAlert(cowId, isInside);
-                log.warn("Geofence {} detected for cow {}: {} -> {}",
-                        isInside ? "entry" : "exit",
-                        cowId,
-                        wasInside ? "inside" : "outside",
-                        isInside ? "inside" : "outside");
-            }
-        }
+        geofenceMonitoringService.evaluate(farmId, cow, latest);
     }
 
     @Override

@@ -58,10 +58,20 @@ const Alerts = () => {
       });
     };
 
+    // The system closes some alerts itself, e.g. when an animal walks back
+    // into its camp; the card should not keep calling for attention.
+    const handleResolved = (resolved) => {
+      setAlerts(prev => prev.map(alert =>
+        alert.alertId === resolved.alertId ? { ...alert, ...resolved } : alert
+      ));
+    };
+
     realtimeService.on(EVENTS.NEW_ALERT, handleNewAlert);
+    realtimeService.on(EVENTS.ALERT_RESOLVED, handleResolved);
 
     return () => {
       realtimeService.off(EVENTS.NEW_ALERT, handleNewAlert);
+      realtimeService.off(EVENTS.ALERT_RESOLVED, handleResolved);
     };
   }, [setAlerts]);
 
@@ -366,6 +376,9 @@ const Alerts = () => {
                     <div className="alert-details">
                       <h4>{alert.title}</h4>
                       <p className="alert-message">{alert.message}</p>
+                      {alert.resolutionNote && (
+                        <p className="alert-message alert-resolution">{alert.resolutionNote}</p>
+                      )}
                       <div className="alert-metrics">
                         <span className="metric-item">
                           <strong>{alert.metric}:</strong> {alert.value}
